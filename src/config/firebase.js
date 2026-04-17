@@ -1,19 +1,29 @@
 const admin = require('firebase-admin');
+const fs = require('fs');
 const path = require('path');
 
-let serviceAccount;
+// Path to serviceAccountKey.json in the project root
+// Path from src/config/firebase.js to root is ../../serviceAccountKey.json
+const serviceAccountPath = path.join(__dirname, '../../serviceAccountKey.json');
 
-if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
-  // Use Base64 from environment variable (Production/Railway)
-  const decodedJson = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf-8');
-  serviceAccount = JSON.parse(decodedJson);
-} else {
-  // Use local file (Development)
-  serviceAccount = require('./serviceAccountKey.json');
+try {
+  // Read the file using fs (Node.js file system)
+  const fileContent = fs.readFileSync(serviceAccountPath, 'utf8');
+  
+  // Parse the JSON content
+  const serviceAccount = JSON.parse(fileContent);
+
+  // Initialize Firebase Admin SDK using the certificate
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount)
+    });
+  }
+
+  console.log('Firebase Admin initialized successfully (CommonJS)');
+} catch (error) {
+  console.error('Error initializing Firebase Admin:', error.message);
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-
+// Export the initialized admin instance using module.exports
 module.exports = admin;

@@ -4,3 +4,4 @@ src/config/serviceAccountKey.json
 .DS_Store
 dist
 *.log
+serviceAccountKey.json
