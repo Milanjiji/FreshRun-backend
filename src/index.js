@@ -13,6 +13,10 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.get("/", (req, res) => {
+  res.send("FreshRun Backend Running ✅");
+});
+
 app.use('/auth', authRoutes);
 
 // Health check
@@ -21,5 +25,5 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
