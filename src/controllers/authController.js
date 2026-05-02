@@ -1,6 +1,7 @@
 const admin = require('../config/firebase');
 const userModel = require('../models/userModel');
 const jwt = require('jsonwebtoken');
+const { generateHash } = require('../utils/hash');
 
 /**
  * Handle user login via Firebase ID Token
@@ -52,16 +53,25 @@ const login = async (req, res) => {
        });
     }
 
-    // 2. Check if user exists in DB or create one
+    // 2. Generate Deterministic ID from Phone
+    const userId = generateHash(phone);
+    console.log('Debug: Generated User ID from phone:', userId);
+
+    // 3. Check if user exists in DB or create one
     let user;
     try {
-      user = await userModel.findByFirebaseUid(firebase_uid);
+      user = await userModel.findById(userId);
 
       if (!user) {
         console.log('Debug: User not found in DB. Creating new user...');
-        user = await userModel.createUser(firebase_uid, phone, role);
+        user = await userModel.createUser(userId, firebase_uid, phone, role);
       } else {
         console.log('Debug: Existing user found in DB');
+        // Update firebase_uid in case it changed (rare but possible if re-linked)
+        if (user.firebase_uid !== firebase_uid) {
+           console.log('Debug: Updating firebase_uid for existing user');
+           // Optional: userModel.updateFirebaseUid(userId, firebase_uid);
+        }
       }
     } catch (dbError) {
       console.error('Database Error:', dbError.message);
@@ -71,7 +81,7 @@ const login = async (req, res) => {
       });
     }
 
-    // 3. Generate custom JWT (7 days expiration)
+    // 4. Generate custom JWT (7 days expiration)
     const token = jwt.sign(
       { id: user.id, firebase_uid: user.firebase_uid, role: user.role },
       process.env.JWT_SECRET,
@@ -86,6 +96,15 @@ const login = async (req, res) => {
         id: user.id,
         phone: user.phone,
         role: user.role,
+        fullName: user.full_name,
+        email: user.email,
+        houseNumber: user.house_number,
+        addressLine: user.address_line,
+        landmark: user.landmark,
+        pincode: user.pincode,
+        city: user.city,
+        deliveryMessage: user.delivery_message,
+        isProfileComplete: user.is_profile_complete,
       },
     });
   } catch (error) {
