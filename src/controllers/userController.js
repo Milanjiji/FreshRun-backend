@@ -19,13 +19,20 @@ const updateProfile = async (req, res) => {
     const updatedUser = await userModel.updateProfile(userId, { 
       fullName, 
       email, 
-      houseNumber, 
+      houseNumber: houseNumber || null, 
       addressLine, 
-      landmark,
+      landmark: landmark || null,
       pincode, 
-      city,
-      deliveryMessage
+      city: city || null,
+      deliveryMessage: deliveryMessage || null
     });
+
+    if (!updatedUser) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found. Please logout and login again.' 
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -46,10 +53,10 @@ const updateProfile = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Update Profile Error:', error);
+    console.error('Update Profile Error Detail:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to update profile' 
+      error: error.message || 'Failed to update profile' 
     });
   }
 };
