@@ -20,6 +20,9 @@ const createStore = async (req, res) => {
       storeLandmark,
       storePincode,
       storeCity,
+      latitude,
+      longitude,
+      mapsLink,
       ownerFullName,
       ownerEmail,
       ownerPhone1,
@@ -75,7 +78,10 @@ const createStore = async (req, res) => {
       address_line: storeAddressLine,
       landmark: storeLandmark,
       pincode: storePincode,
-      city: storeCity
+      city: storeCity,
+      latitude,
+      longitude,
+      maps_link: mapsLink
     };
 
     const newStore = await storeModel.createStore(storeData);

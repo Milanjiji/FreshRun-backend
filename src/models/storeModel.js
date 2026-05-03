@@ -17,16 +17,20 @@ const createStore = async (storeData) => {
     address_line,
     landmark,
     pincode,
-    city
+    city,
+    latitude,
+    longitude,
+    maps_link
   } = storeData;
 
   const result = await db.query(
     `INSERT INTO stores (
       id, owner_id, name, description, category, image_url, 
-      phone_1, phone_2, house_number, address_line, landmark, pincode, city
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+      phone_1, phone_2, house_number, address_line, landmark, pincode, city,
+      latitude, longitude, maps_link
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) 
     RETURNING *`,
-    [id, owner_id, name, description, category, image_url, phone_1, phone_2, house_number, address_line, landmark, pincode, city]
+    [id, owner_id, name, description, category, image_url, phone_1, phone_2, house_number, address_line, landmark, pincode, city, latitude, longitude, maps_link]
   );
   return result.rows[0];
 };
