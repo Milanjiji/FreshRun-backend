@@ -24,6 +24,7 @@ const createStore = async (req, res) => {
       latitude,
       longitude,
       mapsLink,
+      vegType,
       ownerFullName,
       ownerEmail,
       ownerPhone1,
@@ -82,7 +83,8 @@ const createStore = async (req, res) => {
       city: storeCity,
       latitude,
       longitude,
-      maps_link: mapsLink
+      maps_link: mapsLink,
+      veg_type: vegType || 'both'
     };
 
     const newStore = await storeModel.createStore(storeData);
@@ -108,8 +110,8 @@ const createStore = async (req, res) => {
  */
 const getStores = async (req, res) => {
   try {
-    const { category } = req.query;
-    const stores = await storeModel.getAllStores(category);
+    const { category, is_veg } = req.query;
+    const stores = await storeModel.getAllStores({ category, is_veg });
     res.status(200).json({
       success: true,
       data: stores

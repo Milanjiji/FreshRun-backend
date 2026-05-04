@@ -14,16 +14,17 @@ const createProduct = async (productData) => {
     discount_percent,
     stock_quantity,
     is_stock_out,
-    category
+    category,
+    is_veg
   } = productData;
 
   const result = await db.query(
     `INSERT INTO products (
       id, store_id, name, description, image_url, price, 
-      discount_percent, stock_quantity, is_stock_out, category
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      discount_percent, stock_quantity, is_stock_out, category, is_veg
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
     RETURNING *`,
-    [id, store_id, name, description, image_url, price, discount_percent, stock_quantity, is_stock_out, category]
+    [id, store_id, name, description, image_url, price, discount_percent, stock_quantity, is_stock_out, category, is_veg]
   );
   return result.rows[0];
 };
@@ -48,6 +49,10 @@ const getAllProducts = async (filters = {}) => {
   if (filters.store_id) {
     params.push(filters.store_id);
     query += ` AND p.store_id = $${params.length}`;
+  }
+
+  if (filters.is_veg === 'true' || filters.is_veg === true) {
+    query += ` AND p.is_veg = true`;
   }
 
   query += ' ORDER BY p.created_at DESC';

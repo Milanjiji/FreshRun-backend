@@ -16,7 +16,8 @@ const createProduct = async (req, res) => {
       stockQuantity,
       isStockOut,
       category,
-      storeId
+      storeId,
+      isVeg
     } = req.body;
 
     // Basic validation
@@ -40,7 +41,8 @@ const createProduct = async (req, res) => {
       discount_percent: discountPercent || 0,
       stock_quantity: stockQuantity || 0,
       is_stock_out: isStockOut || false,
-      category
+      category,
+      is_veg: isVeg !== undefined ? isVeg : true
     };
 
     const newProduct = await productModel.createProduct(productData);
@@ -66,8 +68,8 @@ const createProduct = async (req, res) => {
  */
 const getProducts = async (req, res) => {
   try {
-    const { category, store_id } = req.query;
-    const products = await productModel.getAllProducts({ category, store_id });
+    const { category, store_id, is_veg } = req.query;
+    const products = await productModel.getAllProducts({ category, store_id, is_veg });
     res.status(200).json({
       success: true,
       data: products
