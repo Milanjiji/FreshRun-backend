@@ -7,6 +7,7 @@ const { generateHash } = require('../utils/hash');
  * POST /stores
  */
 const createStore = async (req, res) => {
+  console.log('--- Create Store Request Received ---');
   try {
     const {
       storeName,
