@@ -40,15 +40,19 @@ const createStore = async (storeData) => {
  * Get all stores, optionally filtered by category
  */
 const getAllStores = async (filters = {}) => {
-  const { category, is_veg } = filters;
+  const { category, is_veg, include_inactive } = filters;
   
   let query = `
     SELECT s.*, 
            (SELECT COALESCE(MAX(discount_percent), 0) FROM products p WHERE p.store_id = s.id) as max_discount
     FROM stores s 
-    WHERE s.is_active = true
+    WHERE 1=1
   `;
   const params = [];
+
+  if (include_inactive !== 'true' && include_inactive !== true) {
+    query += ` AND s.is_active = true`;
+  }
 
   if (category) {
     params.push(category);
@@ -74,8 +78,27 @@ const getStoreById = async (id) => {
   return result.rows[0];
 };
 
+/**
+ * Update store details
+ */
+const updateStore = async (id, updateData) => {
+  const fields = Object.keys(updateData);
+  if (fields.length === 0) return null;
+
+  const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+  const values = Object.values(updateData);
+
+  const result = await db.query(
+    `UPDATE stores SET ${setClause} WHERE id = $1 RETURNING *`,
+    [id, ...values]
+  );
+  return result.rows[0];
+};
+
 module.exports = {
   createStore,
   getAllStores,
   getStoreById,
+  updateStore,
 };
+

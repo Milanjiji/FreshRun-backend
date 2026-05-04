@@ -37,9 +37,13 @@ const getAllProducts = async (filters = {}) => {
     SELECT p.*, s.name as store_name 
     FROM products p 
     JOIN stores s ON p.store_id = s.id 
-    WHERE p.is_active = true
+    WHERE 1=1
   `;
   const params = [];
+
+  if (filters.include_inactive !== 'true' && filters.include_inactive !== true) {
+    query += ` AND p.is_active = true`;
+  }
 
   if (filters.category) {
     params.push(filters.category);
@@ -72,8 +76,27 @@ const getProductsByStore = async (storeId) => {
   return result.rows;
 };
 
+/**
+ * Update product details
+ */
+const updateProduct = async (id, updateData) => {
+  const fields = Object.keys(updateData);
+  if (fields.length === 0) return null;
+
+  const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+  const values = Object.values(updateData);
+
+  const result = await db.query(
+    `UPDATE products SET ${setClause} WHERE id = $1 RETURNING *`,
+    [id, ...values]
+  );
+  return result.rows[0];
+};
+
 module.exports = {
   createProduct,
   getAllProducts,
   getProductsByStore,
+  updateProduct,
 };
+

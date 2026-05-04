@@ -68,8 +68,8 @@ const createProduct = async (req, res) => {
  */
 const getProducts = async (req, res) => {
   try {
-    const { category, store_id, is_veg } = req.query;
-    const products = await productModel.getAllProducts({ category, store_id, is_veg });
+    const { category, store_id, is_veg, include_inactive } = req.query;
+    const products = await productModel.getAllProducts({ category, store_id, is_veg, include_inactive });
     res.status(200).json({
       success: true,
       data: products
@@ -83,7 +83,49 @@ const getProducts = async (req, res) => {
   }
 };
 
+/**
+ * Update product details
+ * PATCH /products/:id
+ */
+const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    // Map camelCase to snake_case if needed
+    const mappedData = {};
+    if (updateData.isStockOut !== undefined) mappedData.is_stock_out = updateData.isStockOut;
+    if (updateData.stockQuantity !== undefined) mappedData.stock_quantity = updateData.stockQuantity;
+    if (updateData.isActive !== undefined) mappedData.is_active = updateData.isActive;
+    if (updateData.price !== undefined) mappedData.price = updateData.price;
+    if (updateData.discountPercent !== undefined) mappedData.discount_percent = updateData.discountPercent;
+
+    const updatedProduct = await productModel.updateProduct(id, mappedData);
+    
+    if (!updatedProduct) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Product updated successfully',
+      data: updatedProduct
+    });
+  } catch (error) {
+    console.error('Error updating product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update product'
+    });
+  }
+};
+
 module.exports = {
   createProduct,
   getProducts,
+  updateProduct,
 };
+

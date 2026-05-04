@@ -110,8 +110,8 @@ const createStore = async (req, res) => {
  */
 const getStores = async (req, res) => {
   try {
-    const { category, is_veg } = req.query;
-    const stores = await storeModel.getAllStores({ category, is_veg });
+    const { category, is_veg, include_inactive } = req.query;
+    const stores = await storeModel.getAllStores({ category, is_veg, include_inactive });
     res.status(200).json({
       success: true,
       data: stores
@@ -125,7 +125,41 @@ const getStores = async (req, res) => {
   }
 };
 
+/**
+ * Update store details
+ * PATCH /stores/:id
+ */
+const updateStore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const updatedStore = await storeModel.updateStore(id, updateData);
+    
+    if (!updatedStore) {
+      return res.status(404).json({
+        success: false,
+        error: 'Store not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Store updated successfully',
+      data: updatedStore
+    });
+  } catch (error) {
+    console.error('Error updating store:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update store'
+    });
+  }
+};
+
 module.exports = {
   createStore,
   getStores,
+  updateStore,
 };
+

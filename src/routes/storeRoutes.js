@@ -5,7 +5,11 @@ const storeController = require('../controllers/storeController');
 // Public route to get stores (for mobile app)
 router.get('/', storeController.getStores);
 
-// Admin route to create store (In production, this should be protected by admin auth)
+// Admin route to create store
 router.post('/', storeController.createStore);
 
+// Route to update store (availability toggle, etc)
+router.patch('/:id', storeController.updateStore);
+
 module.exports = router;
+
