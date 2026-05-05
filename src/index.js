@@ -6,7 +6,9 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const storeRoutes = require('./routes/storeRoutes');
 const productRoutes = require('./routes/productRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 const db = require('./config/db');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +26,8 @@ app.use('/auth', authRoutes);
 app.use('/user', userRoutes);
 app.use('/stores', storeRoutes);
 app.use('/products', productRoutes);
+app.use('/settings', settingsRoutes);
+
 
 // Health check
 app.get('/health', (req, res) => {
