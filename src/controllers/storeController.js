@@ -25,7 +25,9 @@ const createStore = async (req, res) => {
       longitude,
       mapsLink,
       vegType,
+      handlingFee,
       ownerFullName,
+
       ownerEmail,
       ownerPhone1,
       ownerPhone2
@@ -84,8 +86,10 @@ const createStore = async (req, res) => {
       latitude,
       longitude,
       maps_link: mapsLink,
-      veg_type: vegType || 'both'
+      veg_type: vegType || 'both',
+      handling_fee: handlingFee || 0
     };
+
 
     const newStore = await storeModel.createStore(storeData);
 
