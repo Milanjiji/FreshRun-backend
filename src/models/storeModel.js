@@ -30,10 +30,10 @@ const createStore = async (storeData) => {
     `INSERT INTO stores (
       id, owner_id, name, description, category, image_url, 
       phone_1, phone_2, house_number, address_line, landmark, pincode, city,
-      latitude, longitude, maps_link, veg_type, handling_fee
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) 
+      latitude, longitude, maps_link, veg_type, handling_fee, max_delivery_distance
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) 
     RETURNING *`,
-    [id, owner_id, name, description, category, image_url, phone_1, phone_2, house_number, address_line, landmark, pincode, city, latitude, longitude, maps_link, veg_type, handling_fee || 0]
+    [id, owner_id, name, description, category, image_url, phone_1, phone_2, house_number, address_line, landmark, pincode, city, latitude, longitude, maps_link, veg_type, handling_fee || 0, storeData.max_delivery_distance || 5.0]
 
   );
   return result.rows[0];

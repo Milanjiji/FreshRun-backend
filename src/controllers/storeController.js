@@ -27,10 +27,10 @@ const createStore = async (req, res) => {
       vegType,
       handlingFee,
       ownerFullName,
-
       ownerEmail,
       ownerPhone1,
-      ownerPhone2
+      ownerPhone2,
+      maxDeliveryDistance
     } = req.body;
 
     // 1. Basic validation
@@ -87,7 +87,8 @@ const createStore = async (req, res) => {
       longitude,
       maps_link: mapsLink,
       veg_type: vegType || 'both',
-      handling_fee: handlingFee || 0
+      handling_fee: handlingFee || 0,
+      max_delivery_distance: maxDeliveryDistance || 5.0
     };
 
 
