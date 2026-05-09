@@ -7,6 +7,7 @@ const userRoutes = require('./routes/userRoutes');
 const storeRoutes = require('./routes/storeRoutes');
 const productRoutes = require('./routes/productRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 const db = require('./config/db');
 
 
@@ -27,6 +28,7 @@ app.use('/user', userRoutes);
 app.use('/stores', storeRoutes);
 app.use('/products', productRoutes);
 app.use('/settings', settingsRoutes);
+app.use('/orders', orderRoutes);
 
 
 // Health check

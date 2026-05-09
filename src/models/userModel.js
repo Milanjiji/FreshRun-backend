@@ -44,9 +44,20 @@ const updateProfile = async (id, { fullName, email, houseNumber, addressLine, la
   return result.rows[0];
 };
 
+/**
+ * Get all users
+ */
+const findAll = async () => {
+  const result = await db.query(
+    'SELECT id, firebase_uid, phone, role, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, is_profile_complete, is_active, created_at FROM users ORDER BY created_at DESC'
+  );
+  return result.rows;
+};
+
 module.exports = {
   findById,
   findByFirebaseUid,
   createUser,
   updateProfile,
+  findAll,
 };

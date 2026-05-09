@@ -100,7 +100,44 @@ const getProfile = async (req, res) => {
   }
 };
 
+/**
+ * Get all users
+ * GET /user/all
+ */
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await userModel.findAll();
+    
+    res.status(200).json({
+      success: true,
+      data: users.map(user => ({
+        id: user.id,
+        phone: user.phone,
+        role: user.role,
+        fullName: user.full_name,
+        email: user.email,
+        houseNumber: user.house_number,
+        addressLine: user.address_line,
+        landmark: user.landmark,
+        pincode: user.pincode,
+        city: user.city,
+        deliveryMessage: user.delivery_message,
+        isProfileComplete: user.is_profile_complete,
+        isActive: user.is_active,
+        createdAt: user.created_at
+      })),
+    });
+  } catch (error) {
+    console.error('Get All Users Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch users' 
+    });
+  }
+};
+
 module.exports = {
   updateProfile,
   getProfile,
+  getAllUsers,
 };
