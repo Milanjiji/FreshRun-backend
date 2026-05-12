@@ -51,6 +51,17 @@ const getAllOrders = async (req, res) => {
   }
 };
 
+const getActiveOrder = async (req, res) => {
+  try {
+    const user_id = req.user.id;
+    const order = await orderModel.getActiveOrderByUserId(user_id);
+    res.status(200).json({ success: true, order: order || null });
+  } catch (error) {
+    console.error('Error fetching active order:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -71,5 +82,6 @@ const updateOrderStatus = async (req, res) => {
 module.exports = {
   createOrder,
   getAllOrders,
+  getActiveOrder,
   updateOrderStatus
 };

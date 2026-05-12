@@ -58,6 +58,17 @@ const orderModel = {
     return result.rows[0];
   },
 
+  getActiveOrderByUserId: async (user_id) => {
+    const query = `
+      SELECT * FROM orders 
+      WHERE user_id = $1 AND is_completed = false 
+      ORDER BY created_at DESC 
+      LIMIT 1;
+    `;
+    const result = await db.query(query, [user_id]);
+    return result.rows[0];
+  },
+
   updateOrderStatus: async (id, updates) => {
     // updates is an object with fields to update, e.g. { status: 'confirmed', is_completed: true }
     const setCols = [];
