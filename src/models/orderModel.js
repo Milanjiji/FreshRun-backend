@@ -12,15 +12,16 @@ const orderModel = {
       late_night_fee,
       delivery_tip,
       total_amount,
-      delivery_address
+      delivery_address,
+      address_id
     } = orderData;
 
     const query = `
       INSERT INTO orders (
         user_id, store_id, items, subtotal, handling_fee, delivery_fee, 
-        late_night_fee, delivery_tip, total_amount, delivery_address
+        late_night_fee, delivery_tip, total_amount, delivery_address, address_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *;
     `;
 
@@ -34,7 +35,8 @@ const orderModel = {
       late_night_fee,
       delivery_tip,
       total_amount,
-      JSON.stringify(delivery_address)
+      JSON.stringify(delivery_address),
+      address_id
     ];
 
     const result = await db.query(query, values);

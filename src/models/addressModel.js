@@ -42,14 +42,7 @@ const swapAddress = async (userId, targetAddressId) => {
   try {
     await client.query('BEGIN');
 
-    // 1. Get current active address from 'users'
-    const userRes = await client.query(
-      'SELECT full_name, email, house_number, address_line, landmark, pincode, city, delivery_message FROM users WHERE id = $1',
-      [userId]
-    );
-    const currentActive = userRes.rows[0];
-
-    // 2. Get target address from 'addresses'
+    // 1. Get target address details from 'addresses'
     const addrRes = await client.query(
       'SELECT * FROM addresses WHERE id = $1 AND user_id = $2',
       [targetAddressId, userId]
@@ -60,31 +53,30 @@ const swapAddress = async (userId, targetAddressId) => {
       throw new Error('Target address not found');
     }
 
-    // 3. Update 'users' with target details
+    // 2. Update 'users' table with the new pointer AND the details (for compatibility)
     await client.query(
       `UPDATE users SET 
-        full_name = $1, email = $2, house_number = $3, address_line = $4, 
-        landmark = $5, pincode = $6, city = $7, delivery_message = $8 
-      WHERE id = $9`,
+        current_address_id = $1,
+        full_name = $2, 
+        email = $3, 
+        house_number = $4, 
+        address_line = $5, 
+        landmark = $6, 
+        pincode = $7, 
+        city = $8, 
+        delivery_message = $9 
+      WHERE id = $10`,
       [
-        targetAddress.full_name, targetAddress.email, targetAddress.house_number, 
-        targetAddress.address_line, targetAddress.landmark, targetAddress.pincode, 
-        targetAddress.city, targetAddress.delivery_message, userId
-      ]
-    );
-
-    // 4. Update 'addresses' entry with the old active address
-    // We'll also update the 'save_as' and 'address_type' if needed, or just keep them?
-    // Let's assume we keep the 'save_as' and 'address_type' of the slot, but update the content.
-    await client.query(
-      `UPDATE addresses SET 
-        full_name = $1, email = $2, house_number = $3, address_line = $4, 
-        landmark = $5, pincode = $6, city = $7, delivery_message = $8 
-      WHERE id = $9`,
-      [
-        currentActive.full_name, currentActive.email, currentActive.house_number, 
-        currentActive.address_line, currentActive.landmark, currentActive.pincode, 
-        currentActive.city, currentActive.delivery_message, targetAddressId
+        targetAddressId,
+        targetAddress.full_name, 
+        targetAddress.email, 
+        targetAddress.house_number, 
+        targetAddress.address_line, 
+        targetAddress.landmark, 
+        targetAddress.pincode, 
+        targetAddress.city, 
+        targetAddress.delivery_message, 
+        userId
       ]
     );
 

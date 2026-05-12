@@ -1,9 +1,6 @@
 const userModel = require('../models/userModel');
+const addressModel = require('../models/addressModel');
 
-/**
- * Update user profile
- * PUT /user/profile
- */
 const updateProfile = async (req, res) => {
   try {
     const { fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage } = req.body;
@@ -16,7 +13,16 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    const updatedUser = await userModel.updateProfile(userId, { 
+    // 1. Create a NEW address entry for this update (Immutability)
+    const newAddress = await addressModel.create(userId, {
+      fullName, email, houseNumber, addressLine, landmark,
+      pincode, city, deliveryMessage, 
+      addressType: 'Profile', 
+      saveAs: 'Profile Address'
+    });
+
+    // 2. Update the user with the new details and the pointer
+    const updatedUser = await userModel.updateProfileWithAddress(userId, { 
       fullName, 
       email, 
       houseNumber: houseNumber || null, 
@@ -24,13 +30,14 @@ const updateProfile = async (req, res) => {
       landmark: landmark || null,
       pincode, 
       city: city || null,
-      deliveryMessage: deliveryMessage || null
+      deliveryMessage: deliveryMessage || null,
+      currentAddressId: newAddress.id
     });
 
     if (!updatedUser) {
       return res.status(404).json({ 
         success: false, 
-        error: 'User not found. Please logout and login again.' 
+        error: 'User not found.' 
       });
     }
 
@@ -49,15 +56,13 @@ const updateProfile = async (req, res) => {
         pincode: updatedUser.pincode,
         city: updatedUser.city,
         deliveryMessage: updatedUser.delivery_message,
+        currentAddressId: updatedUser.current_address_id,
         isProfileComplete: updatedUser.is_profile_complete,
       },
     });
   } catch (error) {
-    console.error('Update Profile Error Detail:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Failed to update profile' 
-    });
+    console.error('Update Profile Error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to update profile' });
   }
 };
 
@@ -88,6 +93,7 @@ const getProfile = async (req, res) => {
         pincode: user.pincode,
         city: user.city,
         deliveryMessage: user.delivery_message,
+        currentAddressId: user.current_address_id,
         isProfileComplete: user.is_profile_complete,
       },
     });

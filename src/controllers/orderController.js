@@ -11,7 +11,8 @@ const createOrder = async (req, res) => {
       late_night_fee,
       delivery_tip,
       total_amount,
-      delivery_address
+      delivery_address,
+      address_id
     } = req.body;
 
     const user_id = req.user.id;
@@ -30,7 +31,8 @@ const createOrder = async (req, res) => {
       late_night_fee: late_night_fee || 0,
       delivery_tip: delivery_tip || 0,
       total_amount,
-      delivery_address: delivery_address || {}
+      delivery_address: delivery_address || {},
+      address_id: address_id || null
     };
 
     const newOrder = await orderModel.createOrder(orderData);
