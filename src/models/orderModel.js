@@ -40,14 +40,31 @@ const orderModel = {
     ];
 
     const result = await db.query(query, values);
-    return result.rows[0];
+    const newOrder = result.rows[0];
+
+    // Fetch the store location to include in the returned order object
+    const storeQuery = `SELECT latitude as store_lat, longitude as store_lng, name as store_name FROM stores WHERE id = $1`;
+    const storeResult = await db.query(storeQuery, [newOrder.store_id]);
+    
+    if (storeResult.rows.length > 0) {
+      return {
+        ...newOrder,
+        store_lat: storeResult.rows[0].store_lat,
+        store_lng: storeResult.rows[0].store_lng,
+        store_name: storeResult.rows[0].store_name
+      };
+    }
+
+    return newOrder;
   },
 
   getAllOrders: async () => {
     const query = `
-      SELECT o.*, u.full_name as user_name, u.phone as user_phone
+      SELECT o.*, u.full_name as user_name, u.phone as user_phone,
+             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
+      LEFT JOIN stores s ON o.store_id = s.id
       ORDER BY o.created_at DESC;
     `;
     const result = await db.query(query);
@@ -55,16 +72,23 @@ const orderModel = {
   },
 
   getOrderById: async (id) => {
-    const query = `SELECT * FROM orders WHERE id = $1;`;
+    const query = `
+      SELECT o.*, s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
+      FROM orders o
+      LEFT JOIN stores s ON o.store_id = s.id
+      WHERE o.id = $1;
+    `;
     const result = await db.query(query, [id]);
     return result.rows[0];
   },
 
   getActiveOrderByUserId: async (user_id) => {
     const query = `
-      SELECT * FROM orders 
-      WHERE user_id = $1 AND is_completed = false 
-      ORDER BY created_at DESC 
+      SELECT o.*, s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
+      FROM orders o
+      LEFT JOIN stores s ON o.store_id = s.id
+      WHERE o.user_id = $1 AND o.is_completed = false 
+      ORDER BY o.created_at DESC 
       LIMIT 1;
     `;
     const result = await db.query(query, [user_id]);
@@ -94,7 +118,24 @@ const orderModel = {
     `;
 
     const result = await db.query(query, values);
-    return result.rows[0];
+    const updatedOrder = result.rows[0];
+
+    if (!updatedOrder) return null;
+
+    // Fetch the store location to include in the returned order object
+    const storeQuery = `SELECT latitude as store_lat, longitude as store_lng, name as store_name FROM stores WHERE id = $1`;
+    const storeResult = await db.query(storeQuery, [updatedOrder.store_id]);
+    
+    if (storeResult.rows.length > 0) {
+      return {
+        ...updatedOrder,
+        store_lat: storeResult.rows[0].store_lat,
+        store_lng: storeResult.rows[0].store_lng,
+        store_name: storeResult.rows[0].store_name
+      };
+    }
+
+    return updatedOrder;
   }
 };
 
