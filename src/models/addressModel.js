@@ -5,7 +5,7 @@ const db = require('../config/db');
  */
 const findByUserId = async (userId) => {
   const result = await db.query(
-    'SELECT id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as FROM addresses WHERE user_id = $1 ORDER BY created_at DESC',
+    'SELECT id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as, latitude, longitude FROM addresses WHERE user_id = $1 ORDER BY created_at DESC',
     [userId]
   );
   return result.rows;
@@ -17,15 +17,16 @@ const findByUserId = async (userId) => {
 const create = async (userId, addressData) => {
   const { 
     fullName, email, houseNumber, addressLine, landmark, 
-    pincode, city, deliveryMessage, addressType, saveAs 
+    pincode, city, deliveryMessage, addressType, saveAs,
+    latitude, longitude
   } = addressData;
 
   const result = await db.query(
     `INSERT INTO addresses 
-      (user_id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as) 
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      (user_id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as, latitude, longitude) 
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
     RETURNING *`,
-    [userId, fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage, addressType, saveAs]
+    [userId, fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage, addressType, saveAs || 'Other', latitude, longitude]
   );
   return result.rows[0];
 };
@@ -64,8 +65,10 @@ const swapAddress = async (userId, targetAddressId) => {
         landmark = $6, 
         pincode = $7, 
         city = $8, 
-        delivery_message = $9 
-      WHERE id = $10`,
+        delivery_message = $9,
+        latitude = $10,
+        longitude = $11
+      WHERE id = $12`,
       [
         targetAddressId,
         targetAddress.full_name, 
@@ -75,7 +78,9 @@ const swapAddress = async (userId, targetAddressId) => {
         targetAddress.landmark, 
         targetAddress.pincode, 
         targetAddress.city, 
-        targetAddress.delivery_message, 
+        targetAddress.delivery_message,
+        targetAddress.latitude,
+        targetAddress.longitude,
         userId
       ]
     );
@@ -90,8 +95,20 @@ const swapAddress = async (userId, targetAddressId) => {
   }
 };
 
+/**
+ * Delete a saved address
+ */
+const remove = async (id, userId) => {
+  const result = await db.query(
+    'DELETE FROM addresses WHERE id = $1 AND user_id = $2 RETURNING id',
+    [id, userId]
+  );
+  return result.rowCount > 0;
+};
+
 module.exports = {
   findByUserId,
   create,
   swapAddress,
+  remove,
 };

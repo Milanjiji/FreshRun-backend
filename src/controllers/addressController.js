@@ -8,9 +8,11 @@ const getAddresses = async (req, res) => {
   try {
     const userId = req.user.id;
     const addresses = await addressModel.findByUserId(userId);
+    const user = await userModel.findById(userId);
 
     res.status(200).json({
       success: true,
+      currentAddressId: user.current_address_id,
       addresses: addresses.map(addr => ({
         id: addr.id,
         fullName: addr.full_name,
@@ -22,7 +24,9 @@ const getAddresses = async (req, res) => {
         city: addr.city,
         deliveryMessage: addr.delivery_message,
         addressType: addr.address_type,
-        saveAs: addr.save_as
+        saveAs: addr.save_as,
+        latitude: addr.latitude,
+        longitude: addr.longitude
       }))
     });
   } catch (error) {
@@ -39,7 +43,8 @@ const addAddress = async (req, res) => {
     const userId = req.user.id;
     const { 
       fullName, email, houseNumber, addressLine, landmark, 
-      pincode, city, deliveryMessage, addressType, saveAs 
+      pincode, city, deliveryMessage, addressType, saveAs,
+      latitude, longitude
     } = req.body;
 
     if (!addressLine || !pincode) {
@@ -48,7 +53,8 @@ const addAddress = async (req, res) => {
 
     const newAddress = await addressModel.create(userId, {
       fullName, email, houseNumber, addressLine, landmark,
-      pincode, city, deliveryMessage, addressType, saveAs
+      pincode, city, deliveryMessage, addressType, saveAs,
+      latitude, longitude
     });
 
     res.status(201).json({
@@ -93,6 +99,8 @@ const selectAddress = async (req, res) => {
         pincode: user.pincode,
         city: user.city,
         deliveryMessage: user.delivery_message,
+        latitude: user.latitude,
+        longitude: user.longitude,
         isProfileComplete: user.is_profile_complete,
       }
     });
@@ -102,8 +110,37 @@ const selectAddress = async (req, res) => {
   }
 };
 
+/**
+ * Delete an address
+ * DELETE /user/addresses/:id
+ */
+const deleteAddress = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const success = await addressModel.remove(id, userId);
+
+    if (!success) {
+      return res.status(404).json({ success: false, error: 'Address not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Address deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete Address Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to delete address' 
+    });
+  }
+};
+
 module.exports = {
   getAddresses,
   addAddress,
   selectAddress,
+  deleteAddress,
 };

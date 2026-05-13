@@ -12,5 +12,6 @@ router.get('/all', userController.getAllUsers);
 router.get('/addresses', authenticateToken, addressController.getAddresses);
 router.post('/addresses', authenticateToken, addressController.addAddress);
 router.post('/addresses/select', authenticateToken, addressController.selectAddress);
+router.delete('/addresses/:id', authenticateToken, addressController.deleteAddress);
 
 module.exports = router;

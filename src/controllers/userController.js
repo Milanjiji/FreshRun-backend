@@ -3,7 +3,7 @@ const addressModel = require('../models/addressModel');
 
 const updateProfile = async (req, res) => {
   try {
-    const { fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage } = req.body;
+    const { fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage, latitude, longitude } = req.body;
     const userId = req.user.id;
 
     if (!fullName || !email || !addressLine || !pincode) {
@@ -18,7 +18,8 @@ const updateProfile = async (req, res) => {
       fullName, email, houseNumber, addressLine, landmark,
       pincode, city, deliveryMessage, 
       addressType: 'Profile', 
-      saveAs: 'Profile Address'
+      saveAs: 'Profile Address',
+      latitude, longitude
     });
 
     // 2. Update the user with the new details and the pointer
@@ -31,7 +32,9 @@ const updateProfile = async (req, res) => {
       pincode, 
       city: city || null,
       deliveryMessage: deliveryMessage || null,
-      currentAddressId: newAddress.id
+      currentAddressId: newAddress.id,
+      latitude,
+      longitude
     });
 
     if (!updatedUser) {
@@ -57,6 +60,8 @@ const updateProfile = async (req, res) => {
         city: updatedUser.city,
         deliveryMessage: updatedUser.delivery_message,
         currentAddressId: updatedUser.current_address_id,
+        latitude: updatedUser.latitude,
+        longitude: updatedUser.longitude,
         isProfileComplete: updatedUser.is_profile_complete,
       },
     });
@@ -94,6 +99,8 @@ const getProfile = async (req, res) => {
         city: user.city,
         deliveryMessage: user.delivery_message,
         currentAddressId: user.current_address_id,
+        latitude: user.latitude,
+        longitude: user.longitude,
         isProfileComplete: user.is_profile_complete,
       },
     });
@@ -128,6 +135,8 @@ const getAllUsers = async (req, res) => {
         pincode: user.pincode,
         city: user.city,
         deliveryMessage: user.delivery_message,
+        latitude: user.latitude,
+        longitude: user.longitude,
         isProfileComplete: user.is_profile_complete,
         isActive: user.is_active,
         createdAt: user.created_at
