@@ -125,20 +125,34 @@ const registerPartner = async (req, res) => {
   try {
     const { fullName, email, phone, role, aadharNumber, aadharImage } = req.body;
     
+    console.log('--- Partner Registration Request ---');
+    console.log('Phone:', phone, '| Role:', role);
+
+    if (!fullName || !email || !phone || !aadharNumber || !aadharImage) {
+      return res.status(400).json({ success: false, error: 'All fields are required' });
+    }
+
     if (role !== 'delivery') {
       return res.status(400).json({ success: false, error: 'Only delivery partners can register here' });
     }
 
     const userId = generateHash(phone);
+    console.log('Generated userId:', userId);
+
     let user = await userModel.findById(userId);
 
     if (!user) {
-      // Create user first if they don't exist (e.g. they registered before logging in)
-      // Usually they'd have a Firebase UID, but if they are just registering...
-      // Let's assume they have logged in first to get a UID, or we create a skeleton.
-      return res.status(400).json({ success: false, error: 'User not found. Please log in first.' });
+      // New partner — create a fresh user record with approval_status = 'pending'
+      // We use phone as the firebase_uid placeholder since they haven't done OTP yet.
+      // When they first login via Firebase OTP, the uid will be updated.
+      console.log('New partner — creating user record');
+      user = await userModel.createUser(userId, `phone_${userId}`, phone, 'delivery');
+      console.log('User created:', user.id);
+    } else {
+      console.log('Existing user found, updating registration details');
     }
 
+    // Save their registration details (name, email, aadhar)
     const updatedUser = await userModel.updatePartnerRegistration(userId, {
       fullName,
       email,
@@ -146,9 +160,19 @@ const registerPartner = async (req, res) => {
       aadharImage
     });
 
+    console.log('Registration details saved. Approval status:', updatedUser.approval_status);
+
+    // Generate JWT so the app can track their status without re-login
+    const token = jwt.sign(
+      { id: updatedUser.id, firebase_uid: updatedUser.firebase_uid, role: updatedUser.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.status(200).json({
       success: true,
       message: 'Registration submitted. Waiting for admin approval.',
+      token,
       user: {
         id: updatedUser.id,
         phone: updatedUser.phone,
@@ -158,9 +182,11 @@ const registerPartner = async (req, res) => {
         approvalStatus: updatedUser.approval_status,
       }
     });
+
   } catch (error) {
-    console.error('Registration Error:', error);
-    res.status(500).json({ success: false, error: 'Registration failed' });
+    console.error('Registration Error:', error.message);
+    console.error(error.stack);
+    res.status(500).json({ success: false, error: 'Registration failed: ' + error.message });
   }
 };
 
