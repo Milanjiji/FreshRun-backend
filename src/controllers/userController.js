@@ -151,8 +151,54 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+/**
+ * Get all delivery partners
+ * GET /user/delivery-partners
+ */
+const getDeliveryPartners = async (req, res) => {
+  try {
+    const partners = await userModel.findAllDeliveryPartners();
+    res.status(200).json({ success: true, data: partners });
+  } catch (error) {
+    console.error('Get Partners Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch partners' });
+  }
+};
+
+/**
+ * Approve or Reject a delivery partner
+ * PUT /user/approve-partner/:id
+ */
+const approvePartner = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // 'approved' or 'rejected'
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status' });
+    }
+
+    const updatedUser = await userModel.updateApprovalStatus(id, status);
+    
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, error: 'Partner not found' });
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      message: `Partner ${status} successfully`,
+      data: updatedUser 
+    });
+  } catch (error) {
+    console.error('Approve Partner Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update partner status' });
+  }
+};
+
 module.exports = {
   updateProfile,
   getProfile,
   getAllUsers,
+  getDeliveryPartners,
+  approvePartner,
 };

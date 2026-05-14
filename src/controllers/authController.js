@@ -105,6 +105,7 @@ const login = async (req, res) => {
         city: user.city,
         deliveryMessage: user.delivery_message,
         isProfileComplete: user.is_profile_complete,
+        approvalStatus: user.approval_status,
       },
     });
   } catch (error) {
@@ -116,6 +117,54 @@ const login = async (req, res) => {
   }
 };
 
+/**
+ * Handle delivery partner registration
+ * POST /auth/register
+ */
+const registerPartner = async (req, res) => {
+  try {
+    const { fullName, email, phone, role, aadharNumber, aadharImage } = req.body;
+    
+    if (role !== 'delivery') {
+      return res.status(400).json({ success: false, error: 'Only delivery partners can register here' });
+    }
+
+    const userId = generateHash(phone);
+    let user = await userModel.findById(userId);
+
+    if (!user) {
+      // Create user first if they don't exist (e.g. they registered before logging in)
+      // Usually they'd have a Firebase UID, but if they are just registering...
+      // Let's assume they have logged in first to get a UID, or we create a skeleton.
+      return res.status(400).json({ success: false, error: 'User not found. Please log in first.' });
+    }
+
+    const updatedUser = await userModel.updatePartnerRegistration(userId, {
+      fullName,
+      email,
+      aadharNumber,
+      aadharImage
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Registration submitted. Waiting for admin approval.',
+      user: {
+        id: updatedUser.id,
+        phone: updatedUser.phone,
+        role: updatedUser.role,
+        fullName: updatedUser.full_name,
+        email: updatedUser.email,
+        approvalStatus: updatedUser.approval_status,
+      }
+    });
+  } catch (error) {
+    console.error('Registration Error:', error);
+    res.status(500).json({ success: false, error: 'Registration failed' });
+  }
+};
+
 module.exports = {
   login,
+  registerPartner,
 };

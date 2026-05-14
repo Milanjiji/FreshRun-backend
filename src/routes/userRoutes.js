@@ -7,6 +7,9 @@ const authenticateToken = require('../middleware/authMiddleware');
 router.get('/profile', authenticateToken, userController.getProfile);
 router.put('/profile', authenticateToken, userController.updateProfile);
 router.get('/all', userController.getAllUsers);
+router.get('/delivery-partners', userController.getDeliveryPartners);
+router.put('/approve-partner/:id', userController.approvePartner);
+
 
 // Address Management
 router.get('/addresses', authenticateToken, addressController.getAddresses);
