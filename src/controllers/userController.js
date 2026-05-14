@@ -102,8 +102,10 @@ const getProfile = async (req, res) => {
         latitude: user.latitude,
         longitude: user.longitude,
         isProfileComplete: user.is_profile_complete,
+        approvalStatus: user.approval_status,
       },
     });
+
   } catch (error) {
     console.error('Get Profile Error:', error);
     res.status(500).json({ 
