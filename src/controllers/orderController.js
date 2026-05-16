@@ -53,6 +53,44 @@ const getAllOrders = async (req, res) => {
   }
 };
 
+const getAvailableOrders = async (req, res) => {
+  try {
+    const orders = await orderModel.getAvailableOrders();
+    res.status(200).json({ success: true, orders });
+  } catch (error) {
+    console.error('Error fetching available orders:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+const getPartnerOrders = async (req, res) => {
+  try {
+    const partner_id = req.user.id;
+    const orders = await orderModel.getPartnerOrders(partner_id);
+    res.status(200).json({ success: true, orders });
+  } catch (error) {
+    console.error('Error fetching partner orders:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+const optInToOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const partner_id = req.user.id;
+    
+    const updatedOrder = await orderModel.optInToOrder(id, partner_id);
+    if (!updatedOrder) {
+      return res.status(404).json({ success: false, error: 'Order already claimed or not found' });
+    }
+    
+    res.status(200).json({ success: true, order: updatedOrder });
+  } catch (error) {
+    console.error('Error opting in to order:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 const getActiveOrder = async (req, res) => {
   try {
     const user_id = req.user.id;
@@ -84,6 +122,9 @@ const updateOrderStatus = async (req, res) => {
 module.exports = {
   createOrder,
   getAllOrders,
+  getAvailableOrders,
+  getPartnerOrders,
+  optInToOrder,
   getActiveOrder,
   updateOrderStatus
 };

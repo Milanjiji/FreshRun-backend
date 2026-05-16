@@ -42,7 +42,6 @@ const orderModel = {
     const result = await db.query(query, values);
     const newOrder = result.rows[0];
 
-    // Fetch the store location to include in the returned order object
     const storeQuery = `SELECT latitude as store_lat, longitude as store_lng, name as store_name FROM stores WHERE id = $1`;
     const storeResult = await db.query(storeQuery, [newOrder.store_id]);
     
@@ -71,6 +70,48 @@ const orderModel = {
     return result.rows;
   },
 
+  getAvailableOrders: async () => {
+    const query = `
+      SELECT o.*, u.full_name as user_name, u.phone as user_phone,
+             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address as store_address
+      FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
+      LEFT JOIN stores s ON o.store_id = s.id
+      WHERE o.delivery_boy_opted = false AND o.is_completed = false
+      ORDER BY o.created_at DESC;
+    `;
+    const result = await db.query(query);
+    return result.rows;
+  },
+
+  getPartnerOrders: async (partner_id) => {
+    const query = `
+      SELECT o.*, u.full_name as user_name, u.phone as user_phone,
+             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address as store_address
+      FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
+      LEFT JOIN stores s ON o.store_id = s.id
+      WHERE o.delivery_partner_id = $1 AND o.is_completed = false
+      ORDER BY o.created_at DESC;
+    `;
+    const result = await db.query(query, [partner_id]);
+    return result.rows;
+  },
+
+  optInToOrder: async (order_id, partner_id) => {
+    const query = `
+      UPDATE orders
+      SET delivery_boy_opted = true, 
+          delivery_partner_id = $1, 
+          delivery_status = 'assigned',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2 AND delivery_boy_opted = false
+      RETURNING *;
+    `;
+    const result = await db.query(query, [partner_id, order_id]);
+    return result.rows[0];
+  },
+
   getOrderById: async (id) => {
     const query = `
       SELECT o.*, s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
@@ -96,7 +137,6 @@ const orderModel = {
   },
 
   updateOrderStatus: async (id, updates) => {
-    // updates is an object with fields to update, e.g. { status: 'confirmed', is_completed: true }
     const setCols = [];
     const values = [];
     let paramIndex = 1;
@@ -122,7 +162,6 @@ const orderModel = {
 
     if (!updatedOrder) return null;
 
-    // Fetch the store location to include in the returned order object
     const storeQuery = `SELECT latitude as store_lat, longitude as store_lng, name as store_name FROM stores WHERE id = $1`;
     const storeResult = await db.query(storeQuery, [updatedOrder.store_id]);
     
