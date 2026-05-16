@@ -73,7 +73,7 @@ const orderModel = {
   getAvailableOrders: async () => {
     const query = `
       SELECT o.*, u.full_name as user_name, u.phone as user_phone,
-             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address as store_address
+             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address_line as store_address
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       LEFT JOIN stores s ON o.store_id = s.id
@@ -87,7 +87,7 @@ const orderModel = {
   getPartnerOrders: async (partner_id) => {
     const query = `
       SELECT o.*, u.full_name as user_name, u.phone as user_phone,
-             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address as store_address
+             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address_line as store_address
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
       LEFT JOIN stores s ON o.store_id = s.id
