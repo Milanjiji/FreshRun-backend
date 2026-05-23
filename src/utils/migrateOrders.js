@@ -10,6 +10,12 @@ const migrate = async () => {
       ADD COLUMN IF NOT EXISTS delivery_partner_id VARCHAR(255) REFERENCES users(id) ON DELETE SET NULL;
     `);
 
+    // Store the exact selected saved-address row for each order.
+    await pool.query(`
+      ALTER TABLE orders
+      ADD COLUMN IF NOT EXISTS address_id UUID REFERENCES addresses(id) ON DELETE SET NULL;
+    `);
+
     // Add delivery_status if it doesn't exist (pending, assigned, picked_up, out_for_delivery, delivered)
     await pool.query(`
       DO $$ 

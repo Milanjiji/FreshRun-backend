@@ -16,6 +16,7 @@ const setupTable = async () => {
         delivery_tip NUMERIC(10, 2) NOT NULL DEFAULT 0,
         total_amount NUMERIC(10, 2) NOT NULL DEFAULT 0,
         delivery_address JSONB,
+        address_id UUID REFERENCES addresses(id) ON DELETE SET NULL,
         status VARCHAR(50) DEFAULT 'pending', -- pending, confirmed, packed, out_for_delivery, delivered, cancelled
         is_completed BOOLEAN DEFAULT false,
         delivery_boy_opted BOOLEAN DEFAULT false,

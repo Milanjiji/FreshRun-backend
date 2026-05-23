@@ -99,6 +99,7 @@ const selectAddress = async (req, res) => {
         pincode: user.pincode,
         city: user.city,
         deliveryMessage: user.delivery_message,
+        currentAddressId: user.current_address_id,
         latitude: user.latitude,
         longitude: user.longitude,
         isProfileComplete: user.is_profile_complete,

@@ -17,6 +17,8 @@ const setupTable = async () => {
         delivery_message TEXT,
         address_type VARCHAR(50) DEFAULT 'Other', -- House, Office, Other
         save_as VARCHAR(255),
+        latitude NUMERIC(10, 7),
+        longitude NUMERIC(10, 7),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
