@@ -59,7 +59,7 @@ const orderModel = {
 
   getAllOrders: async () => {
     const query = `
-      SELECT o.*, u.full_name as user_name, u.phone as user_phone,
+      SELECT o.*, u.full_name as user_name, u.phone as user_phone, u.latitude as user_lat, u.longitude as user_lng,
              s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
@@ -73,9 +73,12 @@ const orderModel = {
   getAvailableOrders: async () => {
     const query = `
       SELECT o.*, u.full_name as user_name, u.phone as user_phone,
+             COALESCE(u.latitude, a.latitude) as user_lat,
+             COALESCE(u.longitude, a.longitude) as user_lng,
              s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address_line as store_address
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
+      LEFT JOIN addresses a ON o.address_id = a.id
       LEFT JOIN stores s ON o.store_id = s.id
       WHERE o.delivery_boy_opted = false AND o.is_completed = false
       ORDER BY o.created_at DESC;
@@ -87,9 +90,12 @@ const orderModel = {
   getPartnerOrders: async (partner_id) => {
     const query = `
       SELECT o.*, u.full_name as user_name, u.phone as user_phone,
+             COALESCE(u.latitude, a.latitude) as user_lat,
+             COALESCE(u.longitude, a.longitude) as user_lng,
              s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address_line as store_address
       FROM orders o
       LEFT JOIN users u ON o.user_id = u.id
+      LEFT JOIN addresses a ON o.address_id = a.id
       LEFT JOIN stores s ON o.store_id = s.id
       WHERE o.delivery_partner_id = $1 AND o.is_completed = false
       ORDER BY o.created_at DESC;
@@ -114,8 +120,10 @@ const orderModel = {
 
   getOrderById: async (id) => {
     const query = `
-      SELECT o.*, s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
+      SELECT o.*, u.latitude as user_lat, u.longitude as user_lng,
+             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
       FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
       LEFT JOIN stores s ON o.store_id = s.id
       WHERE o.id = $1;
     `;
@@ -125,8 +133,10 @@ const orderModel = {
 
   getActiveOrderByUserId: async (user_id) => {
     const query = `
-      SELECT o.*, s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
+      SELECT o.*, u.latitude as user_lat, u.longitude as user_lng,
+             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
       FROM orders o
+      LEFT JOIN users u ON o.user_id = u.id
       LEFT JOIN stores s ON o.store_id = s.id
       WHERE o.user_id = $1 AND o.is_completed = false 
       ORDER BY o.created_at DESC 
