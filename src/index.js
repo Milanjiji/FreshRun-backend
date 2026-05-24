@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
 require('dotenv').config();
 
 const authRoutes = require('./routes/authRoutes');
@@ -9,9 +10,13 @@ const productRoutes = require('./routes/productRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const db = require('./config/db');
+const socketUtils = require('./utils/socket');
 
 
 const app = express();
+const server = http.createServer(app);
+socketUtils.init(server);
+
 const PORT = process.env.PORT || 5000;
 
 // Middleware
@@ -36,6 +41,6 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK' });
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

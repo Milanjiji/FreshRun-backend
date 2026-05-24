@@ -32,9 +32,7 @@ const updateProfile = async (req, res) => {
       pincode, 
       city: city || null,
       deliveryMessage: deliveryMessage || null,
-      currentAddressId: newAddress.id,
-      latitude,
-      longitude
+      currentAddressId: newAddress.id
     });
 
     if (!updatedUser) {
@@ -60,8 +58,6 @@ const updateProfile = async (req, res) => {
         city: updatedUser.city,
         deliveryMessage: updatedUser.delivery_message,
         currentAddressId: updatedUser.current_address_id,
-        latitude: updatedUser.latitude,
-        longitude: updatedUser.longitude,
         isProfileComplete: updatedUser.is_profile_complete,
       },
     });
@@ -99,8 +95,6 @@ const getProfile = async (req, res) => {
         city: user.city,
         deliveryMessage: user.delivery_message,
         currentAddressId: user.current_address_id,
-        latitude: user.latitude,
-        longitude: user.longitude,
         isProfileComplete: user.is_profile_complete,
         approvalStatus: user.approval_status,
       },
@@ -137,8 +131,6 @@ const getAllUsers = async (req, res) => {
         pincode: user.pincode,
         city: user.city,
         deliveryMessage: user.delivery_message,
-        latitude: user.latitude,
-        longitude: user.longitude,
         isProfileComplete: user.is_profile_complete,
         isActive: user.is_active,
         createdAt: user.created_at

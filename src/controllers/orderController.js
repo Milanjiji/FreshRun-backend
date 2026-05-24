@@ -1,4 +1,5 @@
 const orderModel = require('../models/orderModel');
+const socketUtils = require('../utils/socket');
 
 const createOrder = async (req, res) => {
   try {
@@ -36,6 +37,18 @@ const createOrder = async (req, res) => {
     };
 
     const newOrder = await orderModel.createOrder(orderData);
+    
+    // Emit real-time updates
+    if (newOrder) {
+      try {
+        const io = socketUtils.getIO();
+        io.to('admin').emit('new_order', newOrder);
+        io.to('delivery_partners').emit('new_available_order', newOrder);
+      } catch (socketErr) {
+        console.warn('Socket emit failed:', socketErr.message);
+      }
+    }
+
     res.status(201).json({ success: true, order: newOrder });
   } catch (error) {
     console.error('Error creating order:', error);
@@ -83,6 +96,15 @@ const optInToOrder = async (req, res) => {
     if (!updatedOrder) {
       return res.status(404).json({ success: false, error: 'Order already claimed or not found' });
     }
+
+    // Emit real-time update
+    try {
+      const io = socketUtils.getIO();
+      io.to(`order_${id}`).emit('order_status_changed', updatedOrder);
+      io.to('admin').emit('order_status_changed', updatedOrder);
+    } catch (socketErr) {
+      console.warn('Socket emit failed:', socketErr.message);
+    }
     
     res.status(200).json({ success: true, order: updatedOrder });
   } catch (error) {
@@ -110,6 +132,15 @@ const updateOrderStatus = async (req, res) => {
     const updatedOrder = await orderModel.updateOrderStatus(id, updates);
     if (!updatedOrder) {
       return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Emit real-time update
+    try {
+      const io = socketUtils.getIO();
+      io.to(`order_${id}`).emit('order_status_changed', updatedOrder);
+      io.to('admin').emit('order_status_changed', updatedOrder);
+    } catch (socketErr) {
+      console.warn('Socket emit failed:', socketErr.message);
     }
     
     res.status(200).json({ success: true, order: updatedOrder });

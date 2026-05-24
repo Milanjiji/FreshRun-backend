@@ -2,11 +2,11 @@ const db = require('./src/config/db');
 
 const migrate = async () => {
   try {
-    console.log('Adding latitude and longitude columns to addresses table...');
+    console.log('Dropping deprecated latitude and longitude columns from users table...');
     await db.query(`
-      ALTER TABLE addresses
-        ADD COLUMN IF NOT EXISTS latitude NUMERIC(10, 7),
-        ADD COLUMN IF NOT EXISTS longitude NUMERIC(10, 7)
+      ALTER TABLE users
+        DROP COLUMN IF EXISTS latitude,
+        DROP COLUMN IF EXISTS longitude;
     `);
 
     console.log('Migration successful! ✅');

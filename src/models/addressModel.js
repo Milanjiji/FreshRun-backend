@@ -54,7 +54,7 @@ const swapAddress = async (userId, targetAddressId) => {
       throw new Error('Target address not found');
     }
 
-    // 2. Update 'users' table with the new pointer AND the details (for compatibility)
+    // 2. Update 'users' table with the new pointer and readable address details.
     await client.query(
       `UPDATE users SET 
         current_address_id = $1,
@@ -65,10 +65,8 @@ const swapAddress = async (userId, targetAddressId) => {
         landmark = $6, 
         pincode = $7, 
         city = $8, 
-        delivery_message = $9,
-        latitude = $10,
-        longitude = $11
-      WHERE id = $12`,
+        delivery_message = $9
+      WHERE id = $10`,
       [
         targetAddressId,
         targetAddress.full_name, 
@@ -79,8 +77,6 @@ const swapAddress = async (userId, targetAddressId) => {
         targetAddress.pincode, 
         targetAddress.city, 
         targetAddress.delivery_message,
-        targetAddress.latitude,
-        targetAddress.longitude,
         userId
       ]
     );
