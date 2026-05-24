@@ -1,6 +1,7 @@
 const storeModel = require('../models/storeModel');
 const userModel = require('../models/userModel');
 const { generateHash } = require('../utils/hash');
+const socketUtils = require('../utils/socket');
 
 /**
  * Create a new store and its owner
@@ -146,6 +147,14 @@ const updateStore = async (req, res) => {
         success: false,
         error: 'Store not found'
       });
+    }
+
+    // Emit real-time update
+    try {
+      const io = socketUtils.getIO();
+      io.emit('store_updated', updatedStore);
+    } catch (socketErr) {
+      console.warn('Socket update failed:', socketErr.message);
     }
 
     res.status(200).json({
