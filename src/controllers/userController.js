@@ -189,10 +189,38 @@ const approvePartner = async (req, res) => {
   }
 };
 
+const db = require('../config/db');
+
+/**
+ * Update user's FCM token
+ * POST /user/fcm-token
+ */
+const updateFcmToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token is required' });
+    }
+
+    await db.query(
+      'UPDATE users SET fcm_token = $1 WHERE id = $2',
+      [token, userId]
+    );
+
+    res.status(200).json({ success: true, message: 'FCM token updated successfully' });
+  } catch (error) {
+    console.error('Update FCM Token Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update FCM token' });
+  }
+};
+
 module.exports = {
   updateProfile,
   getProfile,
   getAllUsers,
   getDeliveryPartners,
   approvePartner,
+  updateFcmToken,
 };

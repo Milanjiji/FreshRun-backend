@@ -9,6 +9,7 @@ const storeRoutes = require('./routes/storeRoutes');
 const productRoutes = require('./routes/productRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const driverRoutes = require('./routes/driverRoutes');
 const db = require('./config/db');
 const socketUtils = require('./utils/socket');
 
@@ -34,6 +35,7 @@ app.use('/stores', storeRoutes);
 app.use('/products', productRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/orders', orderRoutes);
+app.use('/drivers', driverRoutes);
 
 
 // Health check

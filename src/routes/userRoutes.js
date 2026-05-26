@@ -17,4 +17,7 @@ router.post('/addresses', authenticateToken, addressController.addAddress);
 router.post('/addresses/select', authenticateToken, addressController.selectAddress);
 router.delete('/addresses/:id', authenticateToken, addressController.deleteAddress);
 
+// FCM Token Management
+router.post('/fcm-token', authenticateToken, userController.updateFcmToken);
+
 module.exports = router;

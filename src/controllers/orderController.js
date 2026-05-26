@@ -1,5 +1,6 @@
 const orderModel = require('../models/orderModel');
 const socketUtils = require('../utils/socket');
+const { sendOrderNotification, broadcastNewOrder } = require('../utils/notification');
 
 const createOrder = async (req, res) => {
   try {
@@ -37,15 +38,18 @@ const createOrder = async (req, res) => {
     };
 
     const newOrder = await orderModel.createOrder(orderData);
-    
-    // Emit real-time updates
+
+    // Emit real-time updates and send push notifications
     if (newOrder) {
       try {
         const io = socketUtils.getIO();
         io.to('admin').emit('new_order', newOrder);
         io.to('delivery_partners').emit('new_available_order', newOrder);
-      } catch (socketErr) {
-        console.warn('Socket emit failed:', socketErr.message);
+        
+        // Push notification to all delivery partners
+        await broadcastNewOrder(newOrder.id, newOrder.store_name || 'a store');
+      } catch (err) {
+        console.warn('Update triggers failed:', err.message);
       }
     }
 
@@ -91,7 +95,7 @@ const optInToOrder = async (req, res) => {
   try {
     const { id } = req.params;
     const partner_id = req.user.id;
-    
+
     const updatedOrder = await orderModel.optInToOrder(id, partner_id);
     if (!updatedOrder) {
       return res.status(404).json({ success: false, error: 'Order already claimed or not found' });
@@ -105,7 +109,7 @@ const optInToOrder = async (req, res) => {
     } catch (socketErr) {
       console.warn('Socket emit failed:', socketErr.message);
     }
-    
+
     res.status(200).json({ success: true, order: updatedOrder });
   } catch (error) {
     console.error('Error opting in to order:', error);
@@ -128,7 +132,7 @@ const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    
+
     const updatedOrder = await orderModel.updateOrderStatus(id, updates);
     if (!updatedOrder) {
       return res.status(404).json({ success: false, error: 'Order not found' });
@@ -139,10 +143,67 @@ const updateOrderStatus = async (req, res) => {
       const io = socketUtils.getIO();
       io.to(`order_${id}`).emit('order_status_changed', updatedOrder);
       io.to('admin').emit('order_status_changed', updatedOrder);
+
+      // Send push notification to partner and customer if status changed
+      if (updates.delivery_status || updates.status || updates.is_completed !== undefined) {
+        const deliveryStatus = updates.delivery_status || updatedOrder.delivery_status;
+        const orderStatus = updates.status || updatedOrder.status;
+        const isCompleted = updates.is_completed || updatedOrder.is_completed;
+
+        let partnerTitle = 'Order Update';
+        let partnerBody = '';
+        let customerTitle = 'Order Update';
+        let customerBody = '';
+
+        // Logic for Customer & Partner notifications
+        if (isCompleted) {
+          customerTitle = 'Order Delivered! 🎁';
+          customerBody = `Your order #${updatedOrder.id} has been delivered. Enjoy!`;
+        } else if (deliveryStatus === 'assigned') {
+          customerTitle = 'Partner Assigned 🛵';
+          customerBody = `A delivery partner has been assigned to your order #${updatedOrder.id}.`;
+        } else if (deliveryStatus === 'packed' || orderStatus === 'packed') {
+          partnerTitle = `Order #${updatedOrder.id} Packed`;
+          partnerBody = 'The order is now packed and ready for pickup.';
+          customerTitle = 'Order Packed 📦';
+          customerBody = `Your order #${updatedOrder.id} is packed and will be picked up soon.`;
+        } else if (deliveryStatus === 'ready' || orderStatus === 'ready') {
+          partnerTitle = `Order #${updatedOrder.id} Ready for Pickup`;
+          partnerBody = 'The order is ready for pickup.';
+          customerTitle = 'Ready for Pickup';
+          customerBody = `Your order #${updatedOrder.id} is ready at the store.`;
+        } else if (deliveryStatus === 'out_for_delivery') {
+          partnerTitle = `Order #${updatedOrder.id} Out for Delivery`;
+          partnerBody = 'Your order is on the way.';
+          customerTitle = 'Out for Delivery 🚀';
+          customerBody = `Your order #${updatedOrder.id} is on the way to you!`;
+        } else if (orderStatus === 'cancelled') {
+          partnerTitle = `Order #${updatedOrder.id} Cancelled`;
+          partnerBody = 'The order has been cancelled.';
+          customerTitle = 'Order Cancelled ❌';
+          customerBody = `Your order #${updatedOrder.id} has been cancelled.`;
+        }
+
+        // Send to Partner
+        if (partnerBody && updatedOrder.delivery_partner_id) {
+          await sendOrderNotification(updatedOrder.delivery_partner_id, partnerTitle, partnerBody, { 
+            orderId: String(updatedOrder.id), 
+            type: deliveryStatus 
+          });
+        }
+
+        // Send to Customer
+        if (customerBody && updatedOrder.user_id) {
+          await sendOrderNotification(updatedOrder.user_id, customerTitle, customerBody, { 
+            orderId: String(updatedOrder.id), 
+            type: orderStatus || deliveryStatus 
+          });
+        }
+      }
     } catch (socketErr) {
       console.warn('Socket emit failed:', socketErr.message);
     }
-    
+
     res.status(200).json({ success: true, order: updatedOrder });
   } catch (error) {
     console.error('Error updating order:', error);
