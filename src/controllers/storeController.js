@@ -132,6 +132,35 @@ const getStores = async (req, res) => {
 };
 
 /**
+ * Get a single store by ID
+ * GET /stores/:id
+ */
+const getStoreById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const store = await storeModel.getStoreById(id);
+
+    if (!store) {
+      return res.status(404).json({
+        success: false,
+        error: 'Store not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: store
+    });
+  } catch (error) {
+    console.error('Error fetching store by ID:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch store'
+    });
+  }
+};
+
+/**
  * Update store details
  * PATCH /stores/:id
  */
@@ -174,6 +203,6 @@ const updateStore = async (req, res) => {
 module.exports = {
   createStore,
   getStores,
+  getStoreById,
   updateStore,
 };
-

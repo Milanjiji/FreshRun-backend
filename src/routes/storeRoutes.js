@@ -4,6 +4,7 @@ const storeController = require('../controllers/storeController');
 
 // Public route to get stores (for mobile app)
 router.get('/', storeController.getStores);
+router.get('/:id', storeController.getStoreById);
 
 // Admin route to create store
 router.post('/', storeController.createStore);
@@ -12,4 +13,3 @@ router.post('/', storeController.createStore);
 router.patch('/:id', storeController.updateStore);
 
 module.exports = router;
-

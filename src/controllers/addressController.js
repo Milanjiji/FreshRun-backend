@@ -80,7 +80,7 @@ const selectAddress = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Address ID is required' });
     }
 
-    await addressModel.swapAddress(userId, addressId);
+    const selectedAddress = await addressModel.swapAddress(userId, addressId);
 
     // Fetch updated profile to return
     const user = await userModel.findById(userId);
@@ -100,6 +100,8 @@ const selectAddress = async (req, res) => {
         city: user.city,
         deliveryMessage: user.delivery_message,
         currentAddressId: user.current_address_id,
+        currentAddressLatitude: selectedAddress?.latitude || null,
+        currentAddressLongitude: selectedAddress?.longitude || null,
         isProfileComplete: user.is_profile_complete,
       }
     });

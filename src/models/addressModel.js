@@ -82,7 +82,7 @@ const swapAddress = async (userId, targetAddressId) => {
     );
 
     await client.query('COMMIT');
-    return true;
+    return targetAddress;
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

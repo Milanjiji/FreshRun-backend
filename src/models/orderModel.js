@@ -30,6 +30,39 @@ const orderAddressJoin = `
   ) a ON true
 `;
 
+const orderDetailsSelect = `
+  SELECT o.*,
+         u.full_name as user_name,
+         u.phone as user_phone,
+         COALESCE(
+           NULLIF(o.delivery_address->>'latitude', '')::numeric,
+           NULLIF(o.delivery_address->>'lat', '')::numeric,
+           a.latitude
+         ) as user_lat,
+         COALESCE(
+           NULLIF(o.delivery_address->>'longitude', '')::numeric,
+           NULLIF(o.delivery_address->>'lng', '')::numeric,
+           a.longitude
+         ) as user_lng,
+         s.latitude as store_lat,
+         s.longitude as store_lng,
+         s.name as store_name,
+         s.address_line as store_address
+  FROM orders o
+  LEFT JOIN users u ON o.user_id = u.id
+  ${orderAddressJoin}
+  LEFT JOIN stores s ON o.store_id = s.id
+`;
+
+const getOrderDetailsById = async (id) => {
+  const result = await db.query(
+    `${orderDetailsSelect}
+     WHERE o.id = $1`,
+    [id]
+  );
+  return result.rows[0];
+};
+
 const orderModel = {
   createOrder: async (orderData) => {
     let {
@@ -97,20 +130,7 @@ const orderModel = {
 
     const result = await db.query(query, values);
     const newOrder = result.rows[0];
-
-    const storeQuery = `SELECT latitude as store_lat, longitude as store_lng, name as store_name FROM stores WHERE id = $1`;
-    const storeResult = await db.query(storeQuery, [newOrder.store_id]);
-    
-    if (storeResult.rows.length > 0) {
-      return {
-        ...newOrder,
-        store_lat: storeResult.rows[0].store_lat,
-        store_lng: storeResult.rows[0].store_lng,
-        store_name: storeResult.rows[0].store_name
-      };
-    }
-
-    return newOrder;
+    return getOrderDetailsById(newOrder.id);
   },
 
   getAllOrders: async () => {
@@ -178,31 +198,12 @@ const orderModel = {
   },
 
   getOrderById: async (id) => {
-    const query = `
-      SELECT o.*,
-             COALESCE(NULLIF(o.delivery_address->>'latitude', '')::numeric, a.latitude) as user_lat,
-             COALESCE(NULLIF(o.delivery_address->>'longitude', '')::numeric, a.longitude) as user_lng,
-             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
-      FROM orders o
-      LEFT JOIN users u ON o.user_id = u.id
-      ${orderAddressJoin}
-      LEFT JOIN stores s ON o.store_id = s.id
-      WHERE o.id = $1;
-    `;
-    const result = await db.query(query, [id]);
-    return result.rows[0];
+    return getOrderDetailsById(id);
   },
 
   getActiveOrderByUserId: async (user_id) => {
     const query = `
-      SELECT o.*,
-             COALESCE(NULLIF(o.delivery_address->>'latitude', '')::numeric, a.latitude) as user_lat,
-             COALESCE(NULLIF(o.delivery_address->>'longitude', '')::numeric, a.longitude) as user_lng,
-             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name
-      FROM orders o
-      LEFT JOIN users u ON o.user_id = u.id
-      ${orderAddressJoin}
-      LEFT JOIN stores s ON o.store_id = s.id
+      ${orderDetailsSelect}
       WHERE o.user_id = $1 AND o.is_completed = false 
       ORDER BY o.created_at DESC 
       LIMIT 1;
@@ -236,20 +237,7 @@ const orderModel = {
     const updatedOrder = result.rows[0];
 
     if (!updatedOrder) return null;
-
-    const storeQuery = `SELECT latitude as store_lat, longitude as store_lng, name as store_name FROM stores WHERE id = $1`;
-    const storeResult = await db.query(storeQuery, [updatedOrder.store_id]);
-    
-    if (storeResult.rows.length > 0) {
-      return {
-        ...updatedOrder,
-        store_lat: storeResult.rows[0].store_lat,
-        store_lng: storeResult.rows[0].store_lng,
-        store_name: storeResult.rows[0].store_name
-      };
-    }
-
-    return updatedOrder;
+    return getOrderDetailsById(updatedOrder.id);
   }
 };
 
