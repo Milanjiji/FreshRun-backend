@@ -1,5 +1,6 @@
 const userModel = require('../models/userModel');
 const addressModel = require('../models/addressModel');
+const db = require('../config/db');
 
 const updateProfile = async (req, res) => {
   try {
@@ -188,8 +189,6 @@ const approvePartner = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to update partner status' });
   }
 };
-
-const db = require('../config/db');
 
 /**
  * Update user's FCM token
