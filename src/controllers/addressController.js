@@ -100,8 +100,8 @@ const selectAddress = async (req, res) => {
         city: user.city,
         deliveryMessage: user.delivery_message,
         currentAddressId: user.current_address_id,
-        currentAddressLatitude: selectedAddress?.latitude || null,
-        currentAddressLongitude: selectedAddress?.longitude || null,
+        currentAddressLatitude: selectedAddress?.latitude ? parseFloat(selectedAddress.latitude) : null,
+        currentAddressLongitude: selectedAddress?.longitude ? parseFloat(selectedAddress.longitude) : null,
         isProfileComplete: user.is_profile_complete,
       }
     });

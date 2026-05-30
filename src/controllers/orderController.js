@@ -1,9 +1,15 @@
 const orderModel = require('../models/orderModel');
 const socketUtils = require('../utils/socket');
 const { sendOrderNotification, broadcastNewOrder } = require('../utils/notification');
+const db = require('../config/db');
+
 
 const createOrder = async (req, res) => {
   try {
+    const user_id = req.user.id;
+    console.log('\n📥 [OrderPlacement] STEP 2: Backend received createOrder request from user:', user_id);
+    console.log('Request Body:', JSON.stringify(req.body, null, 2));
+
     const {
       store_id,
       items,
@@ -16,8 +22,6 @@ const createOrder = async (req, res) => {
       delivery_address,
       address_id
     } = req.body;
-
-    const user_id = req.user.id;
 
     if (!items || !total_amount) {
       return res.status(400).json({ success: false, error: 'Items and total_amount are required' });
@@ -38,6 +42,7 @@ const createOrder = async (req, res) => {
     };
 
     const newOrder = await orderModel.createOrder(orderData);
+    console.log('📦 [OrderPlacement] STEP 3c: Backend successfully stored order in DB. Joined Details:', JSON.stringify(newOrder, null, 2));
 
     // Emit real-time updates and send push notifications
     if (newOrder) {
@@ -55,7 +60,7 @@ const createOrder = async (req, res) => {
 
     res.status(201).json({ success: true, order: newOrder });
   } catch (error) {
-    console.error('Error creating order:', error);
+    console.error('❌ [OrderPlacement] Error creating order:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
@@ -149,9 +154,42 @@ const updateOrderStatus = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
 
+    const existingOrder = await orderModel.getOrderById(id);
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
     const updatedOrder = await orderModel.updateOrderStatus(id, updates);
     if (!updatedOrder) {
       return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    // Check if the order transitioned to completed status
+    const wasCompleted = existingOrder.is_completed;
+    const isCompletedNow = updatedOrder.is_completed;
+
+    if (!wasCompleted && isCompletedNow) {
+      const partnerId = updatedOrder.delivery_partner_id;
+      if (partnerId) {
+        const fee = parseFloat(updatedOrder.delivery_fee) || 0;
+        const tip = parseFloat(updatedOrder.delivery_tip) || 0;
+        const earningsToAdd = fee + tip;
+
+        if (earningsToAdd > 0) {
+          console.log(`[Earnings] Crediting partner ${partnerId} with ₹${earningsToAdd} (fee: ₹${fee}, tip: ₹${tip}) for order #${id}`);
+          try {
+            await db.query(
+              `UPDATE users 
+               SET total_earnings = COALESCE(total_earnings, 0) + $1,
+                   withdrawable_earnings = COALESCE(withdrawable_earnings, 0) + $1
+               WHERE id = $2`,
+              [earningsToAdd, partnerId]
+            );
+          } catch (err) {
+            console.error('❌ Failed to update partner earnings in DB:', err.message);
+          }
+        }
+      }
     }
 
     // Emit real-time update
@@ -172,7 +210,7 @@ const updateOrderStatus = async (req, res) => {
         let customerBody = '';
 
         // Logic for Customer & Partner notifications
-        if (isCompleted) {
+        if (isCompleted && orderStatus !== 'declined' && orderStatus !== 'cancelled') {
           customerTitle = 'Order Delivered! 🎁';
           customerBody = `Your order #${updatedOrder.id} has been delivered. Enjoy!`;
         } else if (deliveryStatus === 'assigned') {
@@ -193,11 +231,12 @@ const updateOrderStatus = async (req, res) => {
           partnerBody = 'Your order is on the way.';
           customerTitle = 'Out for Delivery 🚀';
           customerBody = `Your order #${updatedOrder.id} is on the way to you!`;
-        } else if (orderStatus === 'cancelled') {
-          partnerTitle = `Order #${updatedOrder.id} Cancelled`;
-          partnerBody = 'The order has been cancelled.';
-          customerTitle = 'Order Cancelled ❌';
-          customerBody = `Your order #${updatedOrder.id} has been cancelled.`;
+        } else if (orderStatus === 'cancelled' || orderStatus === 'declined') {
+          const actionText = orderStatus === 'declined' ? 'Declined' : 'Cancelled';
+          partnerTitle = `Order #${updatedOrder.id} ${actionText}`;
+          partnerBody = `The order has been ${actionText.toLowerCase()}.`;
+          customerTitle = `Order ${actionText} ❌`;
+          customerBody = `Your order #${updatedOrder.id} has been ${actionText.toLowerCase()}.`;
         }
 
         // Send to Partner

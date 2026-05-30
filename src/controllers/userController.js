@@ -59,6 +59,8 @@ const updateProfile = async (req, res) => {
         city: updatedUser.city,
         deliveryMessage: updatedUser.delivery_message,
         currentAddressId: updatedUser.current_address_id,
+        currentAddressLatitude: updatedUser.current_address_latitude ? parseFloat(updatedUser.current_address_latitude) : null,
+        currentAddressLongitude: updatedUser.current_address_longitude ? parseFloat(updatedUser.current_address_longitude) : null,
         isProfileComplete: updatedUser.is_profile_complete,
       },
     });
@@ -81,6 +83,20 @@ const getProfile = async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
+    // Calculate today's earnings for delivery partner
+    let todayEarnings = 0;
+    if (user.role === 'delivery') {
+      const todayResult = await db.query(
+        `SELECT COALESCE(SUM(delivery_fee + delivery_tip), 0) as today_earnings 
+         FROM orders 
+         WHERE delivery_partner_id = $1 
+           AND is_completed = true 
+           AND updated_at >= CURRENT_DATE`,
+        [userId]
+      );
+      todayEarnings = parseFloat(todayResult.rows[0]?.today_earnings) || 0;
+    }
+
     res.status(200).json({
       success: true,
       user: {
@@ -96,8 +112,13 @@ const getProfile = async (req, res) => {
         city: user.city,
         deliveryMessage: user.delivery_message,
         currentAddressId: user.current_address_id,
+        currentAddressLatitude: user.current_address_latitude ? parseFloat(user.current_address_latitude) : null,
+        currentAddressLongitude: user.current_address_longitude ? parseFloat(user.current_address_longitude) : null,
         isProfileComplete: user.is_profile_complete,
         approvalStatus: user.approval_status,
+        totalEarnings: user.total_earnings ? parseFloat(user.total_earnings) : 0,
+        withdrawableEarnings: user.withdrawable_earnings ? parseFloat(user.withdrawable_earnings) : 0,
+        todayEarnings: todayEarnings,
       },
     });
 

@@ -2,6 +2,8 @@ const admin = require('../config/firebase');
 const userModel = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 const { generateHash } = require('../utils/hash');
+const db = require('../config/db');
+
 
 /**
  * Handle user login via Firebase ID Token
@@ -81,7 +83,25 @@ const login = async (req, res) => {
       });
     }
 
-    // 4. Generate custom JWT (7 days expiration)
+    // 4. Calculate today's earnings if delivery partner
+    let todayEarnings = 0;
+    if (user.role === 'delivery') {
+      try {
+        const todayResult = await db.query(
+          `SELECT COALESCE(SUM(delivery_fee + delivery_tip), 0) as today_earnings 
+           FROM orders 
+           WHERE delivery_partner_id = $1 
+             AND is_completed = true 
+             AND updated_at >= CURRENT_DATE`,
+          [user.id]
+        );
+        todayEarnings = parseFloat(todayResult.rows[0]?.today_earnings) || 0;
+      } catch (err) {
+        console.error('Failed to compute today earnings on login:', err.message);
+      }
+    }
+
+    // 5. Generate custom JWT (7 days expiration)
     const token = jwt.sign(
       { id: user.id, firebase_uid: user.firebase_uid, role: user.role },
       process.env.JWT_SECRET,
@@ -105,8 +125,13 @@ const login = async (req, res) => {
         city: user.city,
         deliveryMessage: user.delivery_message,
         currentAddressId: user.current_address_id,
+        currentAddressLatitude: user.current_address_latitude ? parseFloat(user.current_address_latitude) : null,
+        currentAddressLongitude: user.current_address_longitude ? parseFloat(user.current_address_longitude) : null,
         isProfileComplete: user.is_profile_complete,
         approvalStatus: user.approval_status,
+        totalEarnings: user.total_earnings ? parseFloat(user.total_earnings) : 0,
+        withdrawableEarnings: user.withdrawable_earnings ? parseFloat(user.withdrawable_earnings) : 0,
+        todayEarnings: todayEarnings,
       },
     });
   } catch (error) {
@@ -181,6 +206,9 @@ const registerPartner = async (req, res) => {
         fullName: updatedUser.full_name,
         email: updatedUser.email,
         approvalStatus: updatedUser.approval_status,
+        totalEarnings: updatedUser.total_earnings ? parseFloat(updatedUser.total_earnings) : 0,
+        withdrawableEarnings: updatedUser.withdrawable_earnings ? parseFloat(updatedUser.withdrawable_earnings) : 0,
+        todayEarnings: 0,
       }
     });
 

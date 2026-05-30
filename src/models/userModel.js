@@ -5,7 +5,13 @@ const db = require('../config/db');
  */
 const findById = async (id) => {
   const result = await db.query(
-    'SELECT id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, current_address_id, is_profile_complete, is_active, created_at FROM users WHERE id = $1',
+    `SELECT u.id, u.firebase_uid, u.phone, u.role, u.full_name, u.email, u.aadhar_number, u.aadhar_image, u.approval_status, 
+            u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
+            a.latitude as current_address_latitude, a.longitude as current_address_longitude,
+            u.total_earnings, u.withdrawable_earnings
+     FROM users u
+     LEFT JOIN addresses a ON u.current_address_id = a.id
+     WHERE u.id = $1`,
     [id]
   );
   return result.rows[0];
@@ -16,7 +22,13 @@ const findById = async (id) => {
  */
 const findByFirebaseUid = async (firebaseUid) => {
   const result = await db.query(
-    'SELECT id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, current_address_id, is_profile_complete, is_active, created_at FROM users WHERE firebase_uid = $1',
+    `SELECT u.id, u.firebase_uid, u.phone, u.role, u.full_name, u.email, u.aadhar_number, u.aadhar_image, u.approval_status, 
+            u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
+            a.latitude as current_address_latitude, a.longitude as current_address_longitude,
+            u.total_earnings, u.withdrawable_earnings
+     FROM users u
+     LEFT JOIN addresses a ON u.current_address_id = a.id
+     WHERE u.firebase_uid = $1`,
     [firebaseUid]
   );
   return result.rows[0];
@@ -26,33 +38,33 @@ const findByFirebaseUid = async (firebaseUid) => {
  * Create a new user record with a hashed ID
  */
 const createUser = async (id, firebaseUid, phone, role) => {
-  const result = await db.query(
-    'INSERT INTO users (id, firebase_uid, phone, role, is_active, approval_status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, current_address_id, is_profile_complete, is_active, created_at',
+  await db.query(
+    'INSERT INTO users (id, firebase_uid, phone, role, is_active, approval_status) VALUES ($1, $2, $3, $4, $5, $6)',
     [id, firebaseUid, phone, role, true, role === 'delivery' ? 'pending' : 'approved']
   );
-  return result.rows[0];
+  return findById(id);
 };
 
 /**
  * Update user profile details and pointer to address entry
  */
 const updateProfileWithAddress = async (id, { fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage, currentAddressId }) => {
-  const result = await db.query(
-    'UPDATE users SET full_name = $1, email = $2, house_number = $3, address_line = $4, landmark = $5, pincode = $6, city = $7, delivery_message = $8, current_address_id = $9, is_profile_complete = true WHERE id = $10 RETURNING id, firebase_uid, phone, role, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, current_address_id, is_profile_complete, is_active, created_at',
+  await db.query(
+    'UPDATE users SET full_name = $1, email = $2, house_number = $3, address_line = $4, landmark = $5, pincode = $6, city = $7, delivery_message = $8, current_address_id = $9, is_profile_complete = true WHERE id = $10',
     [fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage, currentAddressId, id]
   );
-  return result.rows[0];
+  return findById(id);
 };
 
 /**
  * Update user profile details
  */
 const updateProfile = async (id, { fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage }) => {
-  const result = await db.query(
-    'UPDATE users SET full_name = $1, email = $2, house_number = $3, address_line = $4, landmark = $5, pincode = $6, city = $7, delivery_message = $8, is_profile_complete = true WHERE id = $9 RETURNING id, firebase_uid, phone, role, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, current_address_id, is_profile_complete, is_active, created_at',
+  await db.query(
+    'UPDATE users SET full_name = $1, email = $2, house_number = $3, address_line = $4, landmark = $5, pincode = $6, city = $7, delivery_message = $8, is_profile_complete = true WHERE id = $9',
     [fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage, id]
   );
-  return result.rows[0];
+  return findById(id);
 };
 
 /**
