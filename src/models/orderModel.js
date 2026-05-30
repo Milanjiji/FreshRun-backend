@@ -292,6 +292,16 @@ const orderModel = {
     return result.rows[0];
   },
 
+  getOrdersByUserId: async (user_id) => {
+    const query = `
+      ${orderDetailsSelect}
+      WHERE o.user_id = $1
+      ORDER BY o.created_at DESC;
+    `;
+    const result = await db.query(query, [user_id]);
+    return result.rows;
+  },
+
   updateOrderStatus: async (id, updates) => {
     const setCols = [];
     const values = [];

@@ -266,6 +266,17 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+const getUserOrders = async (req, res) => {
+  try {
+    const user_id = req.user.id;
+    const orders = await orderModel.getOrdersByUserId(user_id);
+    res.status(200).json({ success: true, orders });
+  } catch (error) {
+    console.error('Error fetching user orders:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createOrder,
   getAllOrders,
@@ -274,5 +285,6 @@ module.exports = {
   optInToOrder,
   getActiveOrder,
   getOrderById,
-  updateOrderStatus
+  updateOrderStatus,
+  getUserOrders
 };

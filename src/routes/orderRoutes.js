@@ -6,6 +6,7 @@ const {
   getPartnerOrders,
   optInToOrder,
   getActiveOrder, 
+  getUserOrders,
   getOrderById,
   updateOrderStatus 
 } = require('../controllers/orderController');
@@ -17,6 +18,7 @@ router.post('/', authMiddleware, createOrder);
 router.get('/active', authMiddleware, getActiveOrder);
 router.get('/available', authMiddleware, getAvailableOrders);
 router.get('/partner', authMiddleware, getPartnerOrders);
+router.get('/user', authMiddleware, getUserOrders);
 router.get('/:id', authMiddleware, getOrderById);
 router.post('/:id/opt-in', authMiddleware, optInToOrder);
 router.get('/', getAllOrders); // In production, add authMiddleware and restrict to admin or user's own orders
