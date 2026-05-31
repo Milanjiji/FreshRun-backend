@@ -24,6 +24,26 @@ const init = (server) => {
       console.log(`Socket ${socket.id} left room: ${roomName}`);
     });
 
+    // Handle real-time delivery location updates from driver
+    socket.on("update_delivery_location", (data = {}) => {
+      const { orderId, latitude, longitude } = data;
+
+      if (
+        !orderId ||
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude)
+      ) {
+        console.warn("Ignoring invalid delivery location update:", data);
+        return;
+      }
+
+      io.to(`order_${orderId}`).emit("delivery_location_updated", {
+        orderId,
+        latitude,
+        longitude
+      });
+    });
+
     socket.on("disconnect", () => {
       console.log(`User disconnected: ${socket.id}`);
     });
