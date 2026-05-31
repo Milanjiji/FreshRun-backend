@@ -13,5 +13,8 @@ router.post('/', productController.createProduct);
 // Route to update product (availability, stock, etc)
 router.patch('/:id', productController.updateProduct);
 
+// Route to delete product
+router.delete('/:id', productController.deleteProduct);
+
 module.exports = router;
 

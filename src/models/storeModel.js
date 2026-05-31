@@ -98,10 +98,25 @@ const updateStore = async (id, updateData) => {
   return result.rows[0];
 };
 
+/**
+ * Delete a store
+ */
+const deleteStore = async (id) => {
+  // We should probably delete products associated with the store first
+  // if the DB doesn't have CASCADE. For simplicity and safety,
+  // we'll try to delete the store and let the DB throw if there are constraints.
+  const result = await db.query(
+    'DELETE FROM stores WHERE id = $1 RETURNING *',
+    [id]
+  );
+  return result.rows[0];
+};
+
 module.exports = {
   createStore,
   getAllStores,
   getStoreById,
   updateStore,
+  deleteStore,
 };
 

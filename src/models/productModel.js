@@ -104,12 +104,24 @@ const getProductById = async (id) => {
   return result.rows[0];
 };
 
+/**
+ * Delete a product
+ */
+const deleteProduct = async (id) => {
+  const result = await db.query(
+    'DELETE FROM products WHERE id = $1 RETURNING *',
+    [id]
+  );
+  return result.rows[0];
+};
+
 module.exports = {
   createProduct,
   getAllProducts,
   getProductsByStore,
   getProductById,
   updateProduct,
+  deleteProduct,
 };
 
 

@@ -12,4 +12,7 @@ router.post('/', storeController.createStore);
 // Route to update store (availability toggle, etc)
 router.patch('/:id', storeController.updateStore);
 
+// Route to delete store
+router.delete('/:id', storeController.deleteStore);
+
 module.exports = router;

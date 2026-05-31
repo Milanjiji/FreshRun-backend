@@ -9,6 +9,7 @@ router.put('/profile', authenticateToken, userController.updateProfile);
 router.get('/all', userController.getAllUsers);
 router.get('/delivery-partners', userController.getDeliveryPartners);
 router.put('/approve-partner/:id', userController.approvePartner);
+router.get('/:id', userController.getUserById);
 
 
 // Address Management

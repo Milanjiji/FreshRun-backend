@@ -236,6 +236,44 @@ const updateFcmToken = async (req, res) => {
   }
 };
 
+/**
+ * Get user by ID
+ * GET /user/:id
+ */
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await userModel.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: user.id,
+        phone_number: user.phone,
+        role: user.role,
+        full_name: user.full_name,
+        email: user.email,
+        house_number: user.house_number,
+        address_line: user.address_line,
+        landmark: user.landmark,
+        pincode: user.pincode,
+        city: user.city,
+        is_profile_complete: user.is_profile_complete,
+      },
+    });
+  } catch (error) {
+    console.error('Get User By ID Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch user' 
+    });
+  }
+};
+
 module.exports = {
   updateProfile,
   getProfile,
@@ -243,4 +281,5 @@ module.exports = {
   getDeliveryPartners,
   approvePartner,
   updateFcmToken,
+  getUserById,
 };
