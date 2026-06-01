@@ -295,4 +295,6 @@ const registerPartner = async (req, res) => {
 module.exports = {
   login,
   registerPartner,
+  sendOTP,
+  verifyOTP,
 };
