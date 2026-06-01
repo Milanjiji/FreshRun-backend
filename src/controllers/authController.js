@@ -3,10 +3,83 @@ const userModel = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 const { generateHash } = require('../utils/hash');
 const db = require('../config/db');
+const fast2sms = require('../utils/fast2sms');
 
 
 /**
+ * Send OTP to a phone number via Fast2SMS
+ * POST /auth/send-otp
+ * Body: { phone }
+ */
+const sendOTP = async (req, res) => {
+  console.log('--- Send OTP Request ---');
+  const { phone } = req.body;
+
+  if (!phone) {
+    return res.status(400).json({ success: false, error: 'Phone number is required' });
+  }
+
+  try {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+    // Save OTP to database
+    await db.query(
+      'INSERT INTO otps (phone_number, otp, expires_at) VALUES ($1, $2, $3)',
+      [phone, otp, expiresAt]
+    );
+
+    // Send SMS via Fast2SMS utility
+    await fast2sms.sendOTP(phone, otp);
+
+    res.status(200).json({ success: true, message: 'OTP sent successfully' });
+  } catch (error) {
+    console.error('Send OTP Error:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to send OTP: ' + error.message });
+  }
+};
+
+/**
+ * Verify OTP and return a Firebase Custom Token
+ * POST /auth/verify-otp
+ * Body: { phone, otp }
+ */
+const verifyOTP = async (req, res) => {
+  console.log('--- Verify OTP Request ---');
+  const { phone, otp } = req.body;
+
+  if (!phone || !otp) {
+    return res.status(400).json({ success: false, error: 'Phone and OTP are required' });
+  }
+
+  try {
+    // Check if OTP matches and is not expired
+    const result = await db.query(
+      'SELECT * FROM otps WHERE phone_number = $1 AND otp = $2 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
+      [phone, otp]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
+    }
+
+    // Generate a Firebase Custom Token for this phone number
+    // The mobile app will use this token to log in to Firebase
+    const customToken = await admin.auth().createCustomToken(phone);
+
+    // Clean up used OTPs for this number
+    await db.query('DELETE FROM otps WHERE phone_number = $1', [phone]);
+
+    res.status(200).json({ success: true, customToken });
+  } catch (error) {
+    console.error('Verify OTP Error:', error.message);
+    res.status(500).json({ success: false, error: 'Verification failed: ' + error.message });
+  }
+};
+
+/**
  * Handle user login via Firebase ID Token
+
  * POST /auth/login
  * Body: { idToken, role }
  */

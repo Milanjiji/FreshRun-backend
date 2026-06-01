@@ -1,38 +1,16 @@
 const admin = require('firebase-admin');
+const path = require('path');
+require('dotenv').config();
 
-// Destructure environment variables
-const {
-  FIREBASE_PROJECT_ID: projectId,
-  FIREBASE_CLIENT_EMAIL: clientEmail,
-  FIREBASE_PRIVATE_KEY: privateKeyRaw
-} = process.env;
+const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
 
-// Validate that all required environment variables are present
-if (!projectId || !clientEmail || !privateKeyRaw) {
-  console.error('❌ Firebase Admin initialization failed: Missing environment variables.');
-  if (!projectId) console.error('   - Missing FIREBASE_PROJECT_ID');
-  if (!clientEmail) console.error('   - Missing FIREBASE_CLIENT_EMAIL');
-  if (!privateKeyRaw) console.error('   - Missing FIREBASE_PRIVATE_KEY');
-} else {
-  try {
-    // Replace literal \n with actual newlines in the private key
-    // Note: Using /\\n/g to catch the literal string sequence
-    const privateKey = privateKeyRaw.replace(/\\n/g, '\n');
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId,
-          clientEmail,
-          privateKey
-        })
-      });
-      console.log('Firebase Admin initialized (ENV)');
-    }
-  } catch (error) {
-    console.error('Error initializing Firebase Admin:', error.message);
-  }
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert(require(serviceAccountPath)),
+  });
+  console.log('✅ Firebase Admin Initialized');
+} catch (error) {
+  console.error('❌ Firebase Admin Initialization Error:', error.message);
 }
 
 module.exports = admin;
-
