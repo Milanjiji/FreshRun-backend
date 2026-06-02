@@ -12,9 +12,9 @@ const sendOTP = async (phoneNumber, otp) => {
     throw new Error('FAST2SMS_API_KEY is not defined in .env');
   }
 
-  // We use the 'otp' route which is designed for sending OTPs
+  // We use the 'q' (Quick) route which is less restrictive than 'otp'
   // Documentation: https://www.fast2sms.com/help/fast2sms-api-documentation
-  const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${apiKey}&route=otp&variables_values=${otp}&numbers=${phoneNumber}`;
+  const url = `https://www.fast2sms.com/dev/bulkV2?authorization=${apiKey}&route=q&message=Your FreshRun OTP is ${otp}&numbers=${phoneNumber}`;
 
   try {
     const response = await fetch(url, {
