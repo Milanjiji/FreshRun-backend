@@ -222,8 +222,39 @@ const checkOwner = async (req, res) => {
   }
 };
 
+/**
+ * Check if a delivery partner exists and their status by phone number
+ * GET /auth/check-partner/:phone
+ */
+const checkPartner = async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const userId = generateHash(phone);
+    const user = await userModel.findById(userId);
+
+    if (user) {
+      return res.status(200).json({
+        success: true,
+        exists: true,
+        role: user.role,
+        approvalStatus: user.approval_status,
+        isProfileComplete: user.is_profile_complete
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      exists: false
+    });
+  } catch (error) {
+    console.error('Check Partner Error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   login,
   registerPartner,
   checkOwner,
+  checkPartner,
 };
