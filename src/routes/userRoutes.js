@@ -9,9 +9,6 @@ router.put('/profile', authenticateToken, userController.updateProfile);
 router.get('/all', userController.getAllUsers);
 router.get('/delivery-partners', userController.getDeliveryPartners);
 router.patch('/:id/approve', userController.handleApproval);
-router.get('/:id', userController.getUserById);
-
-
 // Address Management
 router.get('/addresses', authenticateToken, addressController.getAddresses);
 router.post('/addresses', authenticateToken, addressController.addAddress);
@@ -20,5 +17,7 @@ router.delete('/addresses/:id', authenticateToken, addressController.deleteAddre
 
 // FCM Token Management
 router.post('/fcm-token', authenticateToken, userController.updateFcmToken);
+
+router.get('/:id', userController.getUserById);
 
 module.exports = router;
