@@ -2,7 +2,6 @@ const storeModel = require('../models/storeModel');
 const userModel = require('../models/userModel');
 const { generateHash } = require('../utils/hash');
 const socketUtils = require('../utils/socket');
-const { uploadImage } = require('../utils/cloudinary');
 
 /**
  * Create a new store and owner user
@@ -10,11 +9,11 @@ const { uploadImage } = require('../utils/cloudinary');
 const createStore = async (req, res) => {
   console.log('--- Create Store Request Received ---');
   try {
-    let {
+    const {
       storeName,
       description,
       category,
-      imageUrl, // This is the store image path (might be base64 or local path from multipart)
+      imageUrl, // This is the store image
       storePhone1,
       storePhone2,
       storeHouseNumber,
@@ -44,17 +43,7 @@ const createStore = async (req, res) => {
       });
     }
 
-    // 2. Upload Images to Cloudinary if they are not already URLs
-    console.log('Uploading images to Cloudinary...');
-    const [uploadedStoreImage, uploadedAadharImage] = await Promise.all([
-      uploadImage(imageUrl, 'stores'),
-      uploadImage(ownerAadharImage, 'aadhar')
-    ]);
-
-    imageUrl = uploadedStoreImage || imageUrl;
-    ownerAadharImage = uploadedAadharImage || ownerAadharImage;
-
-    // 3. Generate Deterministic ID for Store from its primary phone
+    // 2. Generate Deterministic ID for Store from its primary phone
     const storeId = generateHash(storePhone1);
     
     // 4. Generate Deterministic ID for Owner from their primary phone
