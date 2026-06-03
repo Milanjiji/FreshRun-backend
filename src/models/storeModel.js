@@ -77,7 +77,7 @@ const getAllStores = async (filters = {}) => {
     params.push(category);
     query += ` AND s.category = $${params.length}`;
   }
-...
+
   if (is_veg === 'true' || is_veg === true) {
     // Show only 'veg' or 'both' stores
     query += ` AND (s.veg_type = 'veg' OR s.veg_type = 'both')`;
