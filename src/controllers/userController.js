@@ -133,11 +133,12 @@ const getProfile = async (req, res) => {
 
 /**
  * Get all users
- * GET /user/all
+ * GET /user/all?role=owner
  */
 const getAllUsers = async (req, res) => {
   try {
-    const users = await userModel.findAll();
+    const { role } = req.query;
+    const users = await userModel.findAll(role);
     
     res.status(200).json({
       success: true,

@@ -69,12 +69,20 @@ const updateProfile = async (id, { fullName, email, houseNumber, addressLine, la
 };
 
 /**
- * Get all users
+ * Get all users, optionally filtered by role
  */
-const findAll = async () => {
-  const result = await db.query(
-    'SELECT id, firebase_uid, phone, role, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, is_profile_complete, is_active, created_at FROM users ORDER BY created_at DESC'
-  );
+const findAll = async (role) => {
+  let query = 'SELECT id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, is_profile_complete, is_active, created_at FROM users';
+  const params = [];
+
+  if (role) {
+    query += ' WHERE role = $1';
+    params.push(role);
+  }
+
+  query += ' ORDER BY created_at DESC';
+  
+  const result = await db.query(query, params);
   return result.rows;
 };
 
