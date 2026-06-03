@@ -86,7 +86,6 @@ const orderModel = {
       is_pickup
     } = orderData;
 
-    console.log('\n⚙️ [OrderPlacement] STEP 3a: Resolving delivery address ID inside OrderModel...');
     let resolvedAddressId = address_id;
     let resolvedDeliveryAddress = delivery_address || {};
 
@@ -96,7 +95,6 @@ const orderModel = {
         [user_id]
       );
       resolvedAddressId = userResult.rows[0]?.current_address_id || null;
-      console.log('   - No address_id provided in request. Resolved current active address ID from user profile:', resolvedAddressId);
     }
 
     if (resolvedAddressId) {
@@ -107,9 +105,6 @@ const orderModel = {
       const selectedAddress = addressResult.rows[0];
 
       if (selectedAddress) {
-        console.log('   - Found selected address in DB. Coordinates:', selectedAddress.latitude, selectedAddress.longitude);
-        
-        // Self-healing: if coordinates are null in DB but client provided them, save them to the addresses table
         let finalLat = selectedAddress.latitude;
         let finalLng = selectedAddress.longitude;
         const clientLat = delivery_address?.latitude || delivery_address?.lat;
@@ -118,7 +113,6 @@ const orderModel = {
         if ((finalLat === null || finalLng === null) && clientLat && clientLng) {
           finalLat = parseFloat(clientLat);
           finalLng = parseFloat(clientLng);
-          console.log(`   - DB coordinates are null, but client provided coordinates. Healing address ${resolvedAddressId} in DB to: ${finalLat}, ${finalLng}`);
           try {
             await db.query(
               'UPDATE addresses SET latitude = $1, longitude = $2 WHERE id = $3',
@@ -127,7 +121,7 @@ const orderModel = {
             selectedAddress.latitude = finalLat;
             selectedAddress.longitude = finalLng;
           } catch (err) {
-            console.error('⚠️ Failed to auto-heal coordinates in addresses table:', err.message);
+            console.error('⚠️ Failed to auto-heal coordinates:', err.message);
           }
         }
 
@@ -135,12 +129,8 @@ const orderModel = {
           ...resolvedDeliveryAddress,
           ...toDeliveryAddress(selectedAddress),
         };
-      } else {
-        console.log('   - WARNING: resolvedAddressId was specified but not found in addresses table.');
       }
     }
-
-    console.log('📝 [OrderPlacement] STEP 3b: Final resolved delivery address to write to orders table:', JSON.stringify(resolvedDeliveryAddress, null, 2));
 
     const query = `
       INSERT INTO orders (
@@ -171,32 +161,9 @@ const orderModel = {
     return getOrderDetailsById(newOrder.id);
   },
 
-  getOrderDetailsById: async (id) => {
+  getAllOrders: async () => {
     const query = `
-      SELECT o.*, u.full_name as user_name, u.phone as user_phone,
-             a.latitude as user_lat,
-             a.longitude as user_lng,
-             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name,
-             o.is_pickup,
-             json_build_object(
-
-               'line1', COALESCE(
-                 CASE WHEN a.house_number IS NOT NULL AND a.house_number <> '' 
-                      THEN a.house_number || ', ' ELSE '' END || a.address_line, 
-                 o.delivery_address->>'line1', 
-                 ''
-               ),
-               'line2', COALESCE(a.landmark, o.delivery_address->>'line2', ''),
-               'city', COALESCE(a.city, o.delivery_address->>'city', ''),
-               'pincode', COALESCE(a.pincode, o.delivery_address->>'pincode', ''),
-               'latitude', a.latitude,
-               'longitude', a.longitude,
-               'saveAs', COALESCE(a.save_as, o.delivery_address->>'saveAs', 'Home')
-             ) as delivery_address
-      FROM orders o
-      LEFT JOIN users u ON o.user_id = u.id
-      ${orderAddressJoin}
-      LEFT JOIN stores s ON o.store_id = s.id
+      ${orderDetailsSelect}
       ORDER BY o.created_at DESC;
     `;
     const result = await db.query(query);
@@ -205,28 +172,7 @@ const orderModel = {
 
   getAvailableOrders: async () => {
     const query = `
-      SELECT o.*, u.full_name as user_name, u.phone as user_phone,
-             a.latitude as user_lat,
-             a.longitude as user_lng,
-             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address_line as store_address,
-             json_build_object(
-               'line1', COALESCE(
-                 CASE WHEN a.house_number IS NOT NULL AND a.house_number <> '' 
-                      THEN a.house_number || ', ' ELSE '' END || a.address_line, 
-                 o.delivery_address->>'line1', 
-                 ''
-               ),
-               'line2', COALESCE(a.landmark, o.delivery_address->>'line2', ''),
-               'city', COALESCE(a.city, o.delivery_address->>'city', ''),
-               'pincode', COALESCE(a.pincode, o.delivery_address->>'pincode', ''),
-               'latitude', a.latitude,
-               'longitude', a.longitude,
-               'saveAs', COALESCE(a.save_as, o.delivery_address->>'saveAs', 'Home')
-             ) as delivery_address
-      FROM orders o
-      LEFT JOIN users u ON o.user_id = u.id
-      ${orderAddressJoin}
-      LEFT JOIN stores s ON o.store_id = s.id
+      ${orderDetailsSelect}
       WHERE o.delivery_boy_opted = false AND o.is_completed = false
       ORDER BY o.created_at DESC;
     `;
@@ -236,28 +182,7 @@ const orderModel = {
 
   getPartnerOrders: async (partner_id) => {
     const query = `
-      SELECT o.*, u.full_name as user_name, u.phone as user_phone,
-             a.latitude as user_lat,
-             a.longitude as user_lng,
-             s.latitude as store_lat, s.longitude as store_lng, s.name as store_name, s.address_line as store_address,
-             json_build_object(
-               'line1', COALESCE(
-                 CASE WHEN a.house_number IS NOT NULL AND a.house_number <> '' 
-                      THEN a.house_number || ', ' ELSE '' END || a.address_line, 
-                 o.delivery_address->>'line1', 
-                 ''
-               ),
-               'line2', COALESCE(a.landmark, o.delivery_address->>'line2', ''),
-               'city', COALESCE(a.city, o.delivery_address->>'city', ''),
-               'pincode', COALESCE(a.pincode, o.delivery_address->>'pincode', ''),
-               'latitude', a.latitude,
-               'longitude', a.longitude,
-               'saveAs', COALESCE(a.save_as, o.delivery_address->>'saveAs', 'Home')
-             ) as delivery_address
-      FROM orders o
-      LEFT JOIN users u ON o.user_id = u.id
-      ${orderAddressJoin}
-      LEFT JOIN stores s ON o.store_id = s.id
+      ${orderDetailsSelect}
       WHERE o.delivery_partner_id = $1 AND o.is_completed = false
       ORDER BY o.created_at DESC;
     `;
