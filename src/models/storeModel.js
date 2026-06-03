@@ -30,11 +30,17 @@ const createStore = async (storeData) => {
     `INSERT INTO stores (
       id, owner_id, name, description, category, image_url, 
       phone_1, phone_2, house_number, address_line, landmark, pincode, city,
-      latitude, longitude, maps_link, veg_type, handling_fee, max_delivery_distance
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) 
+      latitude, longitude, maps_link, veg_type, handling_fee, max_delivery_distance,
+      approval_status
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) 
     RETURNING *`,
-    [id, owner_id, name, description, category, image_url, phone_1, phone_2, house_number, address_line, landmark, pincode, city, latitude, longitude, maps_link, veg_type, handling_fee || 0, storeData.max_delivery_distance || 5.0]
-
+    [
+      id, owner_id, name, description, category, image_url, 
+      phone_1, phone_2, house_number, address_line, landmark, pincode, city, 
+      latitude, longitude, maps_link, veg_type, handling_fee || 0, 
+      storeData.max_delivery_distance || 5.0,
+      'pending'
+    ]
   );
   return result.rows[0];
 };
@@ -43,12 +49,14 @@ const createStore = async (storeData) => {
  * Get all stores, optionally filtered by category
  */
 const getAllStores = async (filters = {}) => {
-  const { category, is_veg, include_inactive } = filters;
-  
+  const { category, is_veg, include_inactive, include_pending } = filters;
+
   let query = `
     SELECT s.*, 
-           (SELECT COALESCE(MAX(discount_percent), 0) FROM products p WHERE p.store_id = s.id) as max_discount
+           (SELECT COALESCE(MAX(discount_percent), 0) FROM products p WHERE p.store_id = s.id) as max_discount,
+           u.approval_status as owner_approval_status
     FROM stores s 
+    LEFT JOIN users u ON s.owner_id = u.id
     WHERE 1=1
   `;
   const params = [];
@@ -57,11 +65,19 @@ const getAllStores = async (filters = {}) => {
     query += ` AND s.is_active = true`;
   }
 
+  // Filter by approval status: Both store and owner must be approved for customers
+  if (include_pending !== 'true' && include_pending !== true) {
+    query += ` AND s.approval_status = 'approved' AND u.approval_status = 'approved'`;
+    
+    // Only show stores with at least one product for customers
+    query += ` AND EXISTS (SELECT 1 FROM products p WHERE p.store_id = s.id AND p.is_active = true)`;
+  }
+
   if (category) {
     params.push(category);
     query += ` AND s.category = $${params.length}`;
   }
-
+...
   if (is_veg === 'true' || is_veg === true) {
     // Show only 'veg' or 'both' stores
     query += ` AND (s.veg_type = 'veg' OR s.veg_type = 'both')`;

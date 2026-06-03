@@ -38,9 +38,10 @@ const findByFirebaseUid = async (firebaseUid) => {
  * Create a new user record with a hashed ID
  */
 const createUser = async (id, firebaseUid, phone, role) => {
+  const isPendingRole = ['delivery', 'owner'].includes(role);
   await db.query(
     'INSERT INTO users (id, firebase_uid, phone, role, is_active, approval_status) VALUES ($1, $2, $3, $4, $5, $6)',
-    [id, firebaseUid, phone, role, true, role === 'delivery' ? 'pending' : 'approved']
+    [id, firebaseUid, phone, role, true, isPendingRole ? 'pending' : 'approved']
   );
   return findById(id);
 };

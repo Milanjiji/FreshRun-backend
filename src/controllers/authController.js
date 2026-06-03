@@ -186,7 +186,44 @@ const registerPartner = async (req, res) => {
   }
 };
 
+/**
+ * Check if a store owner exists by phone number
+ * GET /auth/check-owner/:phone
+ */
+const checkOwner = async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const userId = generateHash(phone);
+    const user = await userModel.findById(userId);
+
+    if (user && user.role === 'owner') {
+      return res.status(200).json({
+        success: true,
+        exists: true,
+        user: {
+          id: user.id,
+          fullName: user.full_name,
+          email: user.email,
+          approvalStatus: user.approval_status,
+          isProfileComplete: user.is_profile_complete,
+          aadharNumber: user.aadhar_number,
+          aadharImage: user.aadhar_image
+        }
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      exists: false
+    });
+  } catch (error) {
+    console.error('Check Owner Error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   login,
   registerPartner,
+  checkOwner,
 };

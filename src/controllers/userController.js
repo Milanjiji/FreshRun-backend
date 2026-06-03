@@ -155,7 +155,10 @@ const getAllUsers = async (req, res) => {
         deliveryMessage: user.delivery_message,
         isProfileComplete: user.is_profile_complete,
         isActive: user.is_active,
-        createdAt: user.created_at
+        createdAt: user.created_at,
+        approvalStatus: user.approval_status,
+        aadharNumber: user.aadhar_number,
+        aadharImage: user.aadhar_image
       })),
     });
   } catch (error) {
@@ -182,10 +185,10 @@ const getDeliveryPartners = async (req, res) => {
 };
 
 /**
- * Approve or Reject a delivery partner
- * PUT /user/approve-partner/:id
+ * Approve or Reject a user (delivery partner or store owner)
+ * PATCH /user/:id/approve
  */
-const approvePartner = async (req, res) => {
+const handleApproval = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body; // 'approved' or 'rejected'
@@ -197,17 +200,17 @@ const approvePartner = async (req, res) => {
     const updatedUser = await userModel.updateApprovalStatus(id, status);
     
     if (!updatedUser) {
-      return res.status(404).json({ success: false, error: 'Partner not found' });
+      return res.status(404).json({ success: false, error: 'User not found' });
     }
 
     res.status(200).json({ 
       success: true, 
-      message: `Partner ${status} successfully`,
+      message: `User ${status} successfully`,
       data: updatedUser 
     });
   } catch (error) {
-    console.error('Approve Partner Error:', error);
-    res.status(500).json({ success: false, error: 'Failed to update partner status' });
+    console.error('Handle Approval Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to update user status' });
   }
 };
 

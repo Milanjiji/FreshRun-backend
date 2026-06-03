@@ -82,7 +82,8 @@ const orderModel = {
       delivery_tip,
       total_amount,
       delivery_address,
-      address_id
+      address_id,
+      is_pickup
     } = orderData;
 
     console.log('\n⚙️ [OrderPlacement] STEP 3a: Resolving delivery address ID inside OrderModel...');
@@ -144,9 +145,9 @@ const orderModel = {
     const query = `
       INSERT INTO orders (
         user_id, store_id, items, subtotal, handling_fee, delivery_fee, 
-        late_night_fee, delivery_tip, total_amount, delivery_address, address_id
+        late_night_fee, delivery_tip, total_amount, delivery_address, address_id, is_pickup
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *;
     `;
 
@@ -161,7 +162,8 @@ const orderModel = {
       delivery_tip,
       total_amount,
       JSON.stringify(resolvedDeliveryAddress),
-      resolvedAddressId
+      resolvedAddressId,
+      is_pickup || false
     ];
 
     const result = await db.query(query, values);
@@ -169,13 +171,15 @@ const orderModel = {
     return getOrderDetailsById(newOrder.id);
   },
 
-  getAllOrders: async () => {
+  getOrderDetailsById: async (id) => {
     const query = `
       SELECT o.*, u.full_name as user_name, u.phone as user_phone,
              a.latitude as user_lat,
              a.longitude as user_lng,
              s.latitude as store_lat, s.longitude as store_lng, s.name as store_name,
+             o.is_pickup,
              json_build_object(
+
                'line1', COALESCE(
                  CASE WHEN a.house_number IS NOT NULL AND a.house_number <> '' 
                       THEN a.house_number || ', ' ELSE '' END || a.address_line, 

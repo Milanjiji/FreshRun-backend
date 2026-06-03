@@ -8,7 +8,7 @@ router.get('/profile', authenticateToken, userController.getProfile);
 router.put('/profile', authenticateToken, userController.updateProfile);
 router.get('/all', userController.getAllUsers);
 router.get('/delivery-partners', userController.getDeliveryPartners);
-router.put('/approve-partner/:id', userController.approvePartner);
+router.patch('/:id/approve', userController.handleApproval);
 router.get('/:id', userController.getUserById);
 
 

@@ -20,7 +20,8 @@ const createOrder = async (req, res) => {
       delivery_tip,
       total_amount,
       delivery_address,
-      address_id
+      address_id,
+      is_pickup
     } = req.body;
 
     if (!items || !total_amount) {
@@ -38,7 +39,8 @@ const createOrder = async (req, res) => {
       delivery_tip: delivery_tip || 0,
       total_amount,
       delivery_address: delivery_address || {},
-      address_id: address_id || null
+      address_id: address_id || null,
+      is_pickup: is_pickup || false
     };
 
     const newOrder = await orderModel.createOrder(orderData);
@@ -49,10 +51,15 @@ const createOrder = async (req, res) => {
       try {
         const io = socketUtils.getIO();
         io.to('admin').emit('new_order', newOrder);
-        io.to('delivery_partners').emit('new_available_order', newOrder);
         
-        // Push notification to all delivery partners
-        await broadcastNewOrder(newOrder.id, newOrder.store_name || 'a store');
+        // ONLY notify delivery partners if it's NOT a pickup order
+        if (!newOrder.is_pickup) {
+          io.to('delivery_partners').emit('new_available_order', newOrder);
+          // Push notification to all delivery partners
+          await broadcastNewOrder(newOrder.id, newOrder.store_name || 'a store');
+        } else {
+          console.log(`[OrderPlacement] Skipping delivery partner notifications for pickup order #${newOrder.id}`);
+        }
       } catch (err) {
         console.warn('Update triggers failed:', err.message);
       }

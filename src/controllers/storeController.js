@@ -14,7 +14,7 @@ const createStore = async (req, res) => {
       storeName,
       description,
       category,
-      imageUrl,
+      imageUrl, // This is the store image
       storePhone1,
       storePhone2,
       storeHouseNumber,
@@ -31,6 +31,8 @@ const createStore = async (req, res) => {
       ownerEmail,
       ownerPhone1,
       ownerPhone2,
+      ownerAadharNumber,
+      ownerAadharImage,
       maxDeliveryDistance
     } = req.body;
 
@@ -55,19 +57,15 @@ const createStore = async (req, res) => {
       // Note: We use a placeholder for firebase_uid as the admin is creating this
       const placeholderFirebaseUid = `OWNER_PENDING_${ownerPhone1}`;
       owner = await userModel.createUser(ownerId, placeholderFirebaseUid, ownerPhone1, 'owner');
-      
-      // Update owner profile with full details
-      await userModel.updateProfile(ownerId, {
-        fullName: ownerFullName,
-        email: ownerEmail,
-        houseNumber: '', // Store owner might have different home address, but for now we focus on store
-        addressLine: '',
-        landmark: '',
-        pincode: '',
-        city: '',
-        deliveryMessage: ''
-      });
     }
+
+    // Update owner profile with full details including Aadhar
+    await userModel.updatePartnerRegistration(ownerId, {
+      fullName: ownerFullName,
+      email: ownerEmail,
+      aadharNumber: ownerAadharNumber,
+      aadharImage: ownerAadharImage
+    });
 
     // 5. Create the Store
     const storeData = {
@@ -97,7 +95,7 @@ const createStore = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Store created successfully',
+      message: 'Store registration submitted for approval',
       data: newStore
     });
 
