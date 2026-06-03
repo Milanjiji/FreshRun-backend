@@ -20,7 +20,7 @@ const login = async (req, res) => {
       });
     }
 
-    if (!['customer', 'delivery'].includes(role)) {
+    if (!['customer', 'delivery', 'store'].includes(role)) {
       return res.status(400).json({ 
         success: false, 
         error: 'Invalid role' 
