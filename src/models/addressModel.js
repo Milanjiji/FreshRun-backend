@@ -5,7 +5,7 @@ const db = require('../config/db');
  */
 const findByUserId = async (userId) => {
   const result = await db.query(
-    'SELECT id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as, latitude, longitude FROM addresses WHERE user_id = $1 ORDER BY created_at DESC',
+    'SELECT id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as, latitude, longitude FROM addresses WHERE user_id = $1 AND is_active = true ORDER BY created_at DESC',
     [userId]
   );
   return result.rows;
@@ -23,8 +23,8 @@ const create = async (userId, addressData) => {
 
   const result = await db.query(
     `INSERT INTO addresses 
-      (user_id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as, latitude, longitude) 
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+      (user_id, full_name, email, house_number, address_line, landmark, pincode, city, delivery_message, address_type, save_as, latitude, longitude, is_active) 
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true) 
     RETURNING *`,
     [userId, fullName, email, houseNumber, addressLine, landmark, pincode, city, deliveryMessage, addressType, saveAs || 'Other', latitude, longitude]
   );
@@ -33,25 +33,23 @@ const create = async (userId, addressData) => {
 
 /**
  * Swap active address with a saved one
- * 1. Fetch current active from 'users'
- * 2. Fetch target from 'addresses'
- * 3. Update 'users' with target
- * 4. Update 'addresses' (replace target with previous active)
+ * 1. Fetch current active from 'addresses'
+ * 2. Update 'users' with new target
  */
 const swapAddress = async (userId, targetAddressId) => {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1. Get target address details from 'addresses'
+    // 1. Get target address details from 'addresses' (ensure it is active)
     const addrRes = await client.query(
-      'SELECT * FROM addresses WHERE id = $1 AND user_id = $2',
+      'SELECT * FROM addresses WHERE id = $1 AND user_id = $2 AND is_active = true',
       [targetAddressId, userId]
     );
     const targetAddress = addrRes.rows[0];
 
     if (!targetAddress) {
-      throw new Error('Target address not found');
+      throw new Error('Target address not found or inactive');
     }
 
     // 2. Update 'users' table with the new pointer and readable address details.
@@ -92,11 +90,11 @@ const swapAddress = async (userId, targetAddressId) => {
 };
 
 /**
- * Delete a saved address
+ * Delete a saved address (Soft Delete)
  */
 const remove = async (id, userId) => {
   const result = await db.query(
-    'DELETE FROM addresses WHERE id = $1 AND user_id = $2 RETURNING id',
+    'UPDATE addresses SET is_active = false WHERE id = $1 AND user_id = $2 RETURNING id',
     [id, userId]
   );
   return result.rowCount > 0;
