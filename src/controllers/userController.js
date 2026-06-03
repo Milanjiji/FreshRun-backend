@@ -282,7 +282,7 @@ module.exports = {
   getProfile,
   getAllUsers,
   getDeliveryPartners,
-  approvePartner,
+  handleApproval,
   updateFcmToken,
   getUserById,
 };
