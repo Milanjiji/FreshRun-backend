@@ -4,42 +4,36 @@ const db = require('../config/db');
  * Create a new store
  */
 const createStore = async (storeData) => {
-  const {
-    id,
-    owner_id,
-    name,
-    description,
-    category,
-    image_url,
-    phone_1,
-    phone_2,
-    house_number,
-    address_line,
-    landmark,
-    pincode,
-    city,
-    latitude,
-    longitude,
-    maps_link,
-    veg_type,
-    handling_fee
-  } = storeData;
-
-
   const result = await db.query(
     `INSERT INTO stores (
       id, owner_id, name, description, category, image_url, 
       phone_1, phone_2, house_number, address_line, landmark, pincode, city,
       latitude, longitude, maps_link, veg_type, handling_fee, max_delivery_distance,
-      approval_status
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) 
+      approval_status, is_active
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) 
     RETURNING *`,
     [
-      id, owner_id, name, description, category, image_url, 
-      phone_1, phone_2, house_number, address_line, landmark, pincode, city, 
-      latitude, longitude, maps_link, veg_type, handling_fee || 0, 
-      storeData.max_delivery_distance || 5.0,
-      'pending'
+      storeData.id, 
+      storeData.owner_id, 
+      storeData.name, 
+      storeData.description, 
+      storeData.category, 
+      storeData.image_url, 
+      storeData.phone_1, 
+      storeData.phone_2, 
+      storeData.house_number, 
+      storeData.address_line, 
+      storeData.landmark, 
+      storeData.pincode, 
+      storeData.city, 
+      storeData.latitude, 
+      storeData.longitude, 
+      storeData.maps_link, 
+      storeData.veg_type, 
+      storeData.handling_fee, 
+      storeData.max_delivery_distance,
+      'approved', // Default to approved when admin creates it
+      true
     ]
   );
   return result.rows[0];

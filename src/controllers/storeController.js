@@ -2,19 +2,19 @@ const storeModel = require('../models/storeModel');
 const userModel = require('../models/userModel');
 const { generateHash } = require('../utils/hash');
 const socketUtils = require('../utils/socket');
+const { uploadImage } = require('../utils/cloudinary');
 
 /**
- * Create a new store and its owner
- * POST /stores
+ * Create a new store and owner user
  */
 const createStore = async (req, res) => {
   console.log('--- Create Store Request Received ---');
   try {
-    const {
+    let {
       storeName,
       description,
       category,
-      imageUrl, // This is the store image
+      imageUrl, // This is the store image path (might be base64 or local path from multipart)
       storePhone1,
       storePhone2,
       storeHouseNumber,
@@ -44,27 +44,36 @@ const createStore = async (req, res) => {
       });
     }
 
-    // 2. Generate Deterministic ID for Store from its primary phone
+    // 2. Upload Images to Cloudinary if they are not already URLs
+    console.log('Uploading images to Cloudinary...');
+    const [uploadedStoreImage, uploadedAadharImage] = await Promise.all([
+      uploadImage(imageUrl, 'stores'),
+      uploadImage(ownerAadharImage, 'aadhar')
+    ]);
+
+    imageUrl = uploadedStoreImage || imageUrl;
+    ownerAadharImage = uploadedAadharImage || ownerAadharImage;
+
+    // 3. Generate Deterministic ID for Store from its primary phone
     const storeId = generateHash(storePhone1);
     
-    // 3. Generate Deterministic ID for Owner from their primary phone
+    // 4. Generate Deterministic ID for Owner from their primary phone
     const ownerId = generateHash(ownerPhone1);
 
     // 4. Check if owner exists, if not create them
     let owner = await userModel.findById(ownerId);
     if (!owner) {
       console.log('Creating new owner user...');
-      // Note: We use a placeholder for firebase_uid as the admin is creating this
       const placeholderFirebaseUid = `OWNER_PENDING_${ownerPhone1}`;
       owner = await userModel.createUser(ownerId, placeholderFirebaseUid, ownerPhone1, 'owner');
     }
 
-    // Update owner profile with full details including Aadhar
+    // Update owner profile with full details (Safely handle missing Aadhar info from web)
     await userModel.updatePartnerRegistration(ownerId, {
       fullName: ownerFullName,
-      email: ownerEmail,
-      aadharNumber: ownerAadharNumber,
-      aadharImage: ownerAadharImage
+      email: ownerEmail || null,
+      aadharNumber: ownerAadharNumber || null,
+      aadharImage: ownerAadharImage || null
     });
 
     // 5. Create the Store
@@ -72,22 +81,22 @@ const createStore = async (req, res) => {
       id: storeId,
       owner_id: ownerId,
       name: storeName,
-      description,
+      description: description || null,
       category,
-      image_url: imageUrl,
+      image_url: imageUrl || null,
       phone_1: storePhone1,
-      phone_2: storePhone2 || ownerPhone2, // Fallback to owner phone 2 if store phone 2 not provided
-      house_number: storeHouseNumber,
-      address_line: storeAddressLine,
-      landmark: storeLandmark,
-      pincode: storePincode,
-      city: storeCity,
-      latitude,
-      longitude,
-      maps_link: mapsLink,
+      phone_2: storePhone2 || ownerPhone2 || null,
+      house_number: storeHouseNumber || null,
+      address_line: storeAddressLine || null,
+      landmark: storeLandmark || null,
+      pincode: storePincode || null,
+      city: storeCity || 'Calicut',
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
+      maps_link: mapsLink || null,
       veg_type: vegType || 'both',
-      handling_fee: handlingFee || 0,
-      max_delivery_distance: maxDeliveryDistance || 5.0
+      handling_fee: handlingFee ? parseFloat(handlingFee) : 0,
+      max_delivery_distance: maxDeliveryDistance ? parseFloat(maxDeliveryDistance) : 5.0
     };
 
 
