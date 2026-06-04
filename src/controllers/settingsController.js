@@ -1,4 +1,5 @@
 const settingsModel = require('../models/settingsModel');
+const socketUtils = require('../utils/socket');
 
 const getSettings = async (req, res) => {
   try {
@@ -16,6 +17,15 @@ const updateSettings = async (req, res) => {
     if (!settings) {
       return res.status(400).json({ success: false, error: 'Invalid data' });
     }
+
+    // Emit real-time update to all connected clients
+    try {
+      const io = socketUtils.getIO();
+      io.emit('settings_updated', settings);
+    } catch (socketErr) {
+      console.warn('[Settings] Socket emission failed:', socketErr.message);
+    }
+
     res.status(200).json({ success: true, data: settings, message: 'Settings updated successfully' });
   } catch (error) {
     console.error('Error updating settings:', error);
