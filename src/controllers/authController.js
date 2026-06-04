@@ -152,6 +152,21 @@ const registerPartner = async (req, res) => {
     if (!user) {
       console.log('New partner — creating user record');
       user = await userModel.createUser(userId, firebase_uid, phone, 'delivery');
+
+      // --- Notification for Admin ---
+      try {
+        const socketUtils = require('../utils/socket');
+        const io = socketUtils.getIO();
+        io.to('admin').emit('new_registration', {
+          type: 'registration',
+          role: 'delivery',
+          fullName,
+          phone,
+          timestamp: new Date().toISOString()
+        });
+      } catch (socketErr) {
+        console.warn('[Auth] Socket notification failed:', socketErr.message);
+      }
     }
 
     // Save their registration details (name, email, aadhar)

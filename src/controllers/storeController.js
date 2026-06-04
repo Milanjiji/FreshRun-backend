@@ -112,8 +112,8 @@ const createStore = async (req, res) => {
  */
 const getStores = async (req, res) => {
   try {
-    const { category, is_veg, include_inactive } = req.query;
-    const stores = await storeModel.getAllStores({ category, is_veg, include_inactive });
+    const { category, is_veg, include_inactive, include_pending } = req.query;
+    const stores = await storeModel.getAllStores({ category, is_veg, include_inactive, include_pending });
     res.status(200).json({
       success: true,
       data: stores

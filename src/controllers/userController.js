@@ -26,7 +26,8 @@ const updateProfile = async (req, res) => {
     });
 
     // 2. Update the user with the new details and the pointer
-    const updatedUser = await userModel.updateProfileWithAddress(userId, { 
+    const wasProfileIncomplete = !updatedUser?.is_profile_complete;
+    const updatedUserResult = await userModel.updateProfileWithAddress(userId, { 
       fullName, 
       email, 
       houseNumber: houseNumber || null, 
@@ -38,7 +39,24 @@ const updateProfile = async (req, res) => {
       currentAddressId: newAddress.id
     });
 
-    if (!updatedUser) {
+    // --- Notification for Admin (New Customer Registration) ---
+    if (wasProfileIncomplete && updatedUserResult?.role === 'customer') {
+      try {
+        const socketUtils = require('../utils/socket');
+        const io = socketUtils.getIO();
+        io.to('admin').emit('new_registration', {
+          type: 'registration',
+          role: 'customer',
+          fullName: fullName,
+          phone: updatedUserResult.phone,
+          timestamp: new Date().toISOString()
+        });
+      } catch (socketErr) {
+        console.warn('[User] Socket notification failed:', socketErr.message);
+      }
+    }
+
+    if (!updatedUserResult) {
       return res.status(404).json({ 
         success: false, 
         error: 'User not found.' 
@@ -49,21 +67,21 @@ const updateProfile = async (req, res) => {
       success: true,
       message: 'Profile updated successfully',
       user: {
-        id: updatedUser.id,
-        phone: updatedUser.phone,
-        role: updatedUser.role,
-        fullName: updatedUser.full_name,
-        email: updatedUser.email,
-        houseNumber: updatedUser.house_number,
-        addressLine: updatedUser.address_line,
-        landmark: updatedUser.landmark,
-        pincode: updatedUser.pincode,
-        city: updatedUser.city,
-        deliveryMessage: updatedUser.delivery_message,
-        currentAddressId: updatedUser.current_address_id,
-        currentAddressLatitude: updatedUser.current_address_latitude ? parseFloat(updatedUser.current_address_latitude) : null,
-        currentAddressLongitude: updatedUser.current_address_longitude ? parseFloat(updatedUser.current_address_longitude) : null,
-        isProfileComplete: updatedUser.is_profile_complete,
+        id: updatedUserResult.id,
+        phone: updatedUserResult.phone,
+        role: updatedUserResult.role,
+        fullName: updatedUserResult.full_name,
+        email: updatedUserResult.email,
+        houseNumber: updatedUserResult.house_number,
+        addressLine: updatedUserResult.address_line,
+        landmark: updatedUserResult.landmark,
+        pincode: updatedUserResult.pincode,
+        city: updatedUserResult.city,
+        deliveryMessage: updatedUserResult.delivery_message,
+        currentAddressId: updatedUserResult.current_address_id,
+        currentAddressLatitude: updatedUserResult.current_address_latitude ? parseFloat(updatedUserResult.current_address_latitude) : null,
+        currentAddressLongitude: updatedUserResult.current_address_longitude ? parseFloat(updatedUserResult.current_address_longitude) : null,
+        isProfileComplete: updatedUserResult.is_profile_complete,
       },
     });
   } catch (error) {

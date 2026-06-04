@@ -205,6 +205,16 @@ const updateOrderStatus = async (req, res) => {
       io.to(`order_${id}`).emit('order_status_changed', updatedOrder);
       io.to('admin').emit('order_status_changed', updatedOrder);
 
+      // --- Notification for Admin (Order Delivered) ---
+      if (!wasCompleted && isCompletedNow && updatedOrder.status === 'delivered') {
+        io.to('admin').emit('order_delivered', {
+          id: updatedOrder.id,
+          userName: updatedOrder.user_name,
+          totalAmount: updatedOrder.total_amount,
+          timestamp: new Date().toISOString()
+        });
+      }
+
       // Send push notification to partner and customer if status changed
       if (updates.delivery_status || updates.status || updates.is_completed !== undefined) {
         const deliveryStatus = updates.delivery_status || updatedOrder.delivery_status;
