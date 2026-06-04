@@ -180,10 +180,10 @@ const orderModel = {
     return result.rows;
   },
 
-  getPartnerOrders: async (partner_id) => {
+  getPartnerOrders: async (partner_id, includeCompleted = false) => {
     const query = `
       ${orderDetailsSelect}
-      WHERE o.delivery_partner_id = $1 AND o.is_completed = false
+      WHERE o.delivery_partner_id = $1 ${includeCompleted ? '' : 'AND o.is_completed = false'}
       ORDER BY o.created_at DESC;
     `;
     const result = await db.query(query, [partner_id]);

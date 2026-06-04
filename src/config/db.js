@@ -22,7 +22,8 @@ pool.connect(async (err, client, release) => {
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS total_earnings NUMERIC(10,2) DEFAULT 0.00;');
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS withdrawable_earnings NUMERIC(10,2) DEFAULT 0.00;');
       await client.query("ALTER TABLE stores ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'pending';");
-      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status columns)');
+      await client.query("ALTER TABLE stores ADD COLUMN IF NOT EXISTS max_discount NUMERIC(5,2) DEFAULT 0.00;");
+      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount columns)');
     } catch (migErr) {
       console.error('⚠️ Auto-migration failed (non-critical):', migErr.message);
     } finally {

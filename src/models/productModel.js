@@ -1,6 +1,26 @@
 const db = require('../config/db');
 
 /**
+ * Internal helper to update the store's max_discount cache column
+ */
+const updateStoreMaxDiscount = async (storeId) => {
+  if (!storeId) return;
+  try {
+    await db.query(`
+      UPDATE stores 
+      SET max_discount = COALESCE((
+        SELECT MAX(discount_percent) 
+        FROM products 
+        WHERE store_id = $1 AND is_active = true
+      ), 0)
+      WHERE id = $1
+    `, [storeId]);
+  } catch (err) {
+    console.error('Failed to update store max_discount:', err.message);
+  }
+};
+
+/**
  * Create a new product
  */
 const createProduct = async (productData) => {
@@ -26,6 +46,10 @@ const createProduct = async (productData) => {
     RETURNING *`,
     [id, store_id, name, description, image_url, price, discount_percent, stock_quantity, is_stock_out, category, is_veg]
   );
+
+  // Update store cache
+  await updateStoreMaxDiscount(store_id);
+
   return result.rows[0];
 };
 
@@ -90,6 +114,11 @@ const updateProduct = async (id, updateData) => {
     `UPDATE products SET ${setClause} WHERE id = $1 RETURNING *`,
     [id, ...values]
   );
+
+  if (result.rows[0]) {
+    await updateStoreMaxDiscount(result.rows[0].store_id);
+  }
+
   return result.rows[0];
 };
 
@@ -112,6 +141,11 @@ const deleteProduct = async (id) => {
     'DELETE FROM products WHERE id = $1 RETURNING *',
     [id]
   );
+
+  if (result.rows[0]) {
+    await updateStoreMaxDiscount(result.rows[0].store_id);
+  }
+
   return result.rows[0];
 };
 

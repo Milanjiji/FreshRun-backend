@@ -160,7 +160,8 @@ const getAvailableOrders = async (req, res) => {
 const getPartnerOrders = async (req, res) => {
   try {
     const partner_id = req.user.id;
-    const orders = await orderModel.getPartnerOrders(partner_id);
+    const includeCompleted = req.query.history === 'true';
+    const orders = await orderModel.getPartnerOrders(partner_id, includeCompleted);
     res.status(200).json({ success: true, orders });
   } catch (error) {
     console.error('Error fetching partner orders:', error);

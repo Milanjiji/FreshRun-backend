@@ -47,7 +47,6 @@ const getAllStores = async (filters = {}) => {
 
   let query = `
     SELECT s.*, 
-           (SELECT COALESCE(MAX(discount_percent), 0) FROM products p WHERE p.store_id = s.id) as max_discount,
            u.approval_status as owner_approval_status
     FROM stores s 
     LEFT JOIN users u ON s.owner_id = u.id
