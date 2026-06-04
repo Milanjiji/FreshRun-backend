@@ -8,15 +8,12 @@ const createOrder = async (req, res) => {
   try {
     const user_id = req.user.id;
     console.log('\n📥 [OrderPlacement] STEP 2: Backend received createOrder request from user:', user_id);
-    console.log('Request Body:', JSON.stringify(req.body, null, 2));
 
     const {
       store_id,
       items,
       subtotal,
       handling_fee,
-      delivery_fee,
-      late_night_fee,
       delivery_tip,
       total_amount,
       delivery_address,
@@ -24,8 +21,80 @@ const createOrder = async (req, res) => {
       is_pickup
     } = req.body;
 
-    if (!items || !total_amount) {
-      return res.status(400).json({ success: false, error: 'Items and total_amount are required' });
+    if (!items || !total_amount || !store_id) {
+      return res.status(400).json({ success: false, error: 'Items, store_id and total_amount are required' });
+    }
+
+    // 1. Fetch Store and Settings for validation
+    const storeRes = await db.query('SELECT latitude, longitude, name FROM stores WHERE id = $1', [store_id]);
+    const store = storeRes.rows[0];
+    if (!store) return res.status(404).json({ success: false, error: 'Store not found' });
+
+    const settingsRes = await db.query('SELECT * FROM app_settings WHERE id = 1');
+    const settings = settingsRes.rows[0];
+
+    // 2. Resolve User Address & Calculate Distance
+    let userLat, userLng;
+    if (address_id) {
+      const addrRes = await db.query('SELECT latitude, longitude FROM addresses WHERE id = $1', [address_id]);
+      userLat = addrRes.rows[0]?.latitude;
+      userLng = addrRes.rows[0]?.longitude;
+    } else {
+      userLat = delivery_address?.latitude;
+      userLng = delivery_address?.longitude;
+    }
+
+    let finalDeliveryFee = 0;
+
+    if (!is_pickup && userLat && userLng && store.latitude && store.longitude) {
+      // Calculate Haversine Distance
+      const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      };
+
+      const distance = calculateDistance(userLat, userLng, store.latitude, store.longitude);
+      console.log(`[OrderPlacement] Calculated distance: ${distance.toFixed(2)}km`);
+
+      // Enforce Max Radius
+      const maxRadius = parseFloat(settings.global_max_delivery_radius || 10);
+      if (distance > maxRadius) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Store is too far for delivery (${distance.toFixed(1)}km). Max allowed is ${maxRadius}km.` 
+        });
+      }
+
+      // Calculate Dynamic Delivery Fee
+      if (parseFloat(subtotal) < parseFloat(settings.free_delivery_threshold || 500)) {
+        let fee = parseFloat(settings.min_delivery_fee || 30);
+        const baseRadius = parseFloat(settings.base_delivery_radius || 5);
+        
+        if (distance > baseRadius) {
+          const extraKm = distance - baseRadius;
+          const perKmCharge = parseFloat(settings.per_km_extra_charge || 10);
+          fee += extraKm * perKmCharge;
+        }
+
+        if (settings.is_rainy_condition) {
+          fee += parseFloat(settings.rainy_condition_fee || 0);
+        }
+
+        finalDeliveryFee = Math.round(fee);
+      }
+    }
+
+    // 3. Late Night Fee check (Existing logic but centralized)
+    let finalLateNightFee = 0;
+    const now = new Date();
+    const currentTime = now.getHours() + ":" + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
+    if (currentTime >= settings.late_night_start || currentTime <= settings.late_night_end) {
+      finalLateNightFee = parseFloat(settings.late_night_fee || 0);
     }
 
     const orderData = {
@@ -34,17 +103,17 @@ const createOrder = async (req, res) => {
       items,
       subtotal: subtotal || 0,
       handling_fee: handling_fee || 0,
-      delivery_fee: delivery_fee || 0,
-      late_night_fee: late_night_fee || 0,
+      delivery_fee: finalDeliveryFee,
+      late_night_fee: finalLateNightFee,
       delivery_tip: delivery_tip || 0,
-      total_amount,
+      total_amount: parseFloat(subtotal) + parseFloat(handling_fee) + finalDeliveryFee + finalLateNightFee + parseFloat(delivery_tip),
       delivery_address: delivery_address || {},
       address_id: address_id || null,
       is_pickup: is_pickup || false
     };
 
     const newOrder = await orderModel.createOrder(orderData);
-    console.log('📦 [OrderPlacement] STEP 3c: Backend successfully stored order in DB. Joined Details:', JSON.stringify(newOrder, null, 2));
+    console.log('📦 [OrderPlacement] Order created with dynamic fee:', finalDeliveryFee);
 
     // Emit real-time updates and send push notifications
     if (newOrder) {
@@ -52,13 +121,9 @@ const createOrder = async (req, res) => {
         const io = socketUtils.getIO();
         io.to('admin').emit('new_order', newOrder);
         
-        // ONLY notify delivery partners if it's NOT a pickup order
         if (!newOrder.is_pickup) {
           io.to('delivery_partners').emit('new_available_order', newOrder);
-          // Push notification to all delivery partners
           await broadcastNewOrder(newOrder.id, newOrder.store_name || 'a store');
-        } else {
-          console.log(`[OrderPlacement] Skipping delivery partner notifications for pickup order #${newOrder.id}`);
         }
       } catch (err) {
         console.warn('Update triggers failed:', err.message);
