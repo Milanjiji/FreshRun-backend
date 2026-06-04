@@ -65,6 +65,9 @@ const getAllStores = async (filters = {}) => {
     
     // Only show stores with at least one product for customers
     query += ` AND EXISTS (SELECT 1 FROM products p WHERE p.store_id = s.id AND p.is_active = true)`;
+  } else {
+    // For Admin: allow showing stores even if they don't have products yet
+    // No extra product check here
   }
 
   if (category) {
