@@ -14,6 +14,9 @@ const createOrder = async (req, res) => {
       items,
       subtotal,
       handling_fee,
+      delivery_fee,
+      rainy_surge_fee,
+      late_night_fee,
       delivery_tip,
       total_amount,
       delivery_address,
@@ -103,10 +106,11 @@ const createOrder = async (req, res) => {
       items,
       subtotal: subtotal || 0,
       handling_fee: handling_fee || 0,
-      delivery_fee: finalDeliveryFee,
-      late_night_fee: finalLateNightFee,
+      delivery_fee: delivery_fee || 0,
+      rainy_surge_fee: rainy_surge_fee || 0,
+      late_night_fee: late_night_fee || 0,
       delivery_tip: delivery_tip || 0,
-      total_amount: parseFloat(subtotal) + parseFloat(handling_fee) + finalDeliveryFee + finalLateNightFee + parseFloat(delivery_tip),
+      total_amount: total_amount || 0,
       delivery_address: delivery_address || {},
       address_id: address_id || null,
       is_pickup: is_pickup || false
@@ -245,11 +249,13 @@ const updateOrderStatus = async (req, res) => {
       const partnerId = updatedOrder.delivery_partner_id;
       if (partnerId) {
         const fee = parseFloat(updatedOrder.delivery_fee) || 0;
+        const rainySurge = parseFloat(updatedOrder.rainy_surge_fee) || 0;
+        const lateNight = parseFloat(updatedOrder.late_night_fee) || 0;
         const tip = parseFloat(updatedOrder.delivery_tip) || 0;
-        const earningsToAdd = fee + tip;
+        const earningsToAdd = fee + rainySurge + lateNight + tip;
 
         if (earningsToAdd > 0) {
-          console.log(`[Earnings] Crediting partner ${partnerId} with ₹${earningsToAdd} (fee: ₹${fee}, tip: ₹${tip}) for order #${id}`);
+          console.log(`[Earnings] Crediting partner ${partnerId} with ₹${earningsToAdd} (fee: ₹${fee}, rainy: ₹${rainySurge}, lateNight: ₹${lateNight}, tip: ₹${tip}) for order #${id}`);
           try {
             await db.query(
               `UPDATE users 
