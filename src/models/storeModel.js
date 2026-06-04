@@ -125,11 +125,23 @@ const deleteStore = async (id) => {
   return result.rows[0];
 };
 
+/**
+ * Deactivate all stores owned by a specific user
+ */
+const deactivateStoresByOwner = async (ownerId) => {
+  const result = await db.query(
+    'UPDATE stores SET is_active = false WHERE owner_id = $1 RETURNING *',
+    [ownerId]
+  );
+  return result.rows;
+};
+
 module.exports = {
   createStore,
   getAllStores,
   getStoreById,
   updateStore,
   deleteStore,
+  deactivateStoresByOwner,
 };
 

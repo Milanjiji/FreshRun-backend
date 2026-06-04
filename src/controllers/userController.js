@@ -1,6 +1,8 @@
 const userModel = require('../models/userModel');
 const addressModel = require('../models/addressModel');
+const storeModel = require('../models/storeModel');
 const db = require('../config/db');
+const admin = require('../config/firebase');
 
 const updateProfile = async (req, res) => {
   try {
@@ -278,6 +280,48 @@ const getUserById = async (req, res) => {
   }
 };
 
+/**
+ * Delete a user account (Anonymize data and delete from Firebase)
+ * DELETE /user/account
+ */
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const firebaseUid = req.user.firebaseUid;
+    const userRole = req.user.role;
+
+    console.log(`Starting account deletion for user: ${userId}`);
+
+    // 1. Delete user from Firebase Auth
+    try {
+      await admin.auth().deleteUser(firebaseUid);
+      console.log(`Firebase user ${firebaseUid} deleted.`);
+    } catch (firebaseError) {
+      // If user is already deleted in Firebase, proceed anyway
+      if (firebaseError.code !== 'auth/user-not-found') {
+        console.error('Firebase deletion error:', firebaseError);
+        return res.status(500).json({ success: false, error: 'Failed to delete authentication record.' });
+      }
+    }
+
+    // 2. If user is an owner, deactivate all their stores
+    if (userRole === 'owner') {
+      await storeModel.deactivateStoresByOwner(userId);
+      console.log(`Stores deactivated for owner ${userId}.`);
+    }
+
+    // 3. Anonymize user in database
+    await userModel.anonymizeUser(userId);
+    console.log(`User ${userId} anonymized in database.`);
+
+    res.status(200).json({ success: true, message: 'Account deleted successfully.' });
+
+  } catch (error) {
+    console.error('Account Deletion Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete account.' });
+  }
+};
+
 module.exports = {
   updateProfile,
   getProfile,
@@ -286,4 +330,5 @@ module.exports = {
   handleApproval,
   updateFcmToken,
   getUserById,
+  deleteAccount,
 };

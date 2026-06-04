@@ -18,6 +18,9 @@ router.delete('/addresses/:id', authenticateToken, addressController.deleteAddre
 // FCM Token Management
 router.post('/fcm-token', authenticateToken, userController.updateFcmToken);
 
+// Account Deletion
+router.delete('/account', authenticateToken, userController.deleteAccount);
+
 router.get('/:id', userController.getUserById);
 
 module.exports = router;
