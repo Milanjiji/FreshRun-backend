@@ -26,7 +26,9 @@ const updateProfile = async (req, res) => {
     });
 
     // 2. Update the user with the new details and the pointer
-    const wasProfileIncomplete = !updatedUser?.is_profile_complete;
+    const currentUser = await userModel.findById(userId);
+    const wasProfileIncomplete = !currentUser?.is_profile_complete;
+
     const updatedUserResult = await userModel.updateProfileWithAddress(userId, { 
       fullName, 
       email, 
