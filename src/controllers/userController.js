@@ -307,7 +307,7 @@ const getUserById = async (req, res) => {
 const deleteAccount = async (req, res) => {
   try {
     const userId = req.user.id;
-    const firebaseUid = req.user.firebaseUid;
+    const firebaseUid = req.user.firebase_uid;
     const userRole = req.user.role;
 
     console.log(`Starting account deletion for user: ${userId}`);

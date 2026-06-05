@@ -1,5 +1,6 @@
 const admin = require('../config/firebase');
 const { generateHash } = require('../utils/hash');
+const userModel = require('../models/userModel');
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -16,10 +17,18 @@ const authenticateToken = async (req, res, next) => {
     // Generate deterministic userId from verified phone number
     const userId = generateHash(decodedToken.phone_number);
     
+    // Fetch full user data to get the role
+    const user = await userModel.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User record not found' });
+    }
+    
     req.user = { 
-      id: userId, 
+      id: user.id, 
       firebase_uid: decodedToken.uid, 
-      phone: decodedToken.phone_number 
+      phone: decodedToken.phone_number,
+      role: user.role
     };
     
     next();
