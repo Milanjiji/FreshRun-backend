@@ -3,6 +3,8 @@ const crypto = require('crypto');
 const userModel = require('../models/userModel');
 const storeModel = require('../models/storeModel');
 const orderModel = require('../models/orderModel');
+const db = require('../config/db');
+const { sendOrderNotification } = require('../utils/notification');
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -167,13 +169,42 @@ const handleWebhook = async (req, res) => {
     const event = req.body.event;
     const payload = req.body.payload;
 
-    if (event === 'account.activated' || event === 'account.needs_clarification') {
-      const accountId = payload.account.entity.id;
-      const status = event === 'account.activated' ? 'activated' : 'needs_clarification';
-      
-      // Update store or user status
-      // Note: We need to find who owns this account_id. 
-      // This would involve a query to find store or user by razorpay_account_id.
+    try {
+      if (event === 'order.paid') {
+        const orderIdStr = payload.order.entity.receipt; // e.g. receipt_123
+        const orderId = orderIdStr ? orderIdStr.replace('receipt_', '') : null;
+        
+        if (orderId) {
+          // Update Order Status to paid and trigger socket/FCM inside your model/controller flow
+          await orderModel.updateOrderStatus(orderId, {
+            payment_status: 'paid',
+            delivery_status: 'placed'
+          });
+          
+          const order = await orderModel.getOrderById(orderId);
+          if (order && order.user_id) {
+             await sendOrderNotification(order.user_id, 'Payment Successful', `Your order #${orderId} has been paid and placed successfully.`, { type: 'order' });
+          }
+        }
+      } 
+      else if (event === 'account.instantly_activated' || event === 'account.activated_kyc_pending') {
+        const accountId = payload.account.entity.id;
+        const status = event === 'account.instantly_activated' ? 'activated' : 'kyc_pending';
+        
+        // Find if it's a store
+        const storeRes = await db.query('SELECT id FROM stores WHERE razorpay_account_id = $1', [accountId]);
+        if (storeRes.rows.length > 0) {
+          await storeModel.updateStore(storeRes.rows[0].id, { razorpay_kyc_status: status });
+        } else {
+          // Check if it's a delivery partner
+          const userRes = await db.query('SELECT id FROM users WHERE razorpay_account_id = $1', [accountId]);
+          if (userRes.rows.length > 0) {
+            await userModel.updateRazorpayDetails(userRes.rows[0].id, { razorpay_kyc_status: status });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Webhook Processing Error:', err);
     }
 
     res.status(200).send('ok');
@@ -182,9 +213,44 @@ const handleWebhook = async (req, res) => {
   }
 };
 
+/**
+ * Pay Delivery Boy (Delayed Transfer)
+ */
+const payDeliveryBoy = async (partnerId, amount, orderId) => {
+  try {
+    const userRes = await db.query('SELECT razorpay_account_id FROM users WHERE id = $1', [partnerId]);
+    const partner = userRes.rows[0];
+
+    if (!partner || !partner.razorpay_account_id) {
+       console.error(`Cannot pay partner ${partnerId} - No Razorpay Linked Account`);
+       return false;
+    }
+
+    // Amount needs to be in paise
+    const amountInPaise = Math.round(amount * 100);
+
+    const transfer = await razorpay.transfers.create({
+      account: partner.razorpay_account_id,
+      amount: amountInPaise,
+      currency: "INR",
+      notes: {
+        order_id: orderId,
+        payout_type: "delivery_fee"
+      }
+    });
+
+    console.log(`Successfully transferred ₹${amount} to Delivery Boy ${partnerId}`);
+    return true;
+  } catch (error) {
+    console.error('Pay Delivery Boy Error:', error);
+    return false;
+  }
+};
+
 module.exports = {
   onboardPartner,
   createOrderWithSplit,
   verifyPayment,
-  handleWebhook
+  handleWebhook,
+  payDeliveryBoy
 };

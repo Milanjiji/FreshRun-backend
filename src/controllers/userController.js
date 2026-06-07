@@ -355,7 +355,3 @@ module.exports = {
   getUserById,
   deleteAccount,
 };
-en,
-  getUserById,
-  deleteAccount,
-};

@@ -2,6 +2,7 @@ const orderModel = require('../models/orderModel');
 const socketUtils = require('../utils/socket');
 const { sendOrderNotification, broadcastNewOrder } = require('../utils/notification');
 const db = require('../config/db');
+const paymentController = require('./paymentController');
 
 
 const createOrder = async (req, res) => {
@@ -265,6 +266,10 @@ const updateOrderStatus = async (req, res) => {
                WHERE id = $2`,
               [earningsToAdd, partnerId]
             );
+            
+            // Instantly transfer money to delivery boy via Razorpay Route
+            await paymentController.payDeliveryBoy(partnerId, earningsToAdd, id);
+            
           } catch (err) {
             console.error('❌ Failed to update partner earnings in DB:', err.message);
           }
