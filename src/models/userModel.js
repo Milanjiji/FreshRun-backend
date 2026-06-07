@@ -154,4 +154,47 @@ module.exports = {
   findAll,
   findAllDeliveryPartners,
   anonymizeUser,
+  updateRazorpayDetails,
+};
+e, approval_status, created_at FROM users WHERE role = 'delivery' ORDER BY created_at DESC"
+  );
+  return result.rows;
+};
+
+/**
+ * Soft delete a user by anonymizing their personal data
+ */
+const anonymizeUser = async (id) => {
+  const result = await db.query(
+    `UPDATE users 
+     SET full_name = 'Deleted User', 
+         email = NULL, 
+         phone = 'DELETED_' || id, 
+         firebase_uid = 'DELETED_' || id,
+         aadhar_number = NULL, 
+         aadhar_image = NULL, 
+         fcm_token = NULL,
+         house_number = NULL,
+         address_line = NULL,
+         landmark = NULL,
+         delivery_message = NULL,
+         current_address_id = NULL,
+         is_active = false 
+     WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  return result.rows[0];
+};
+
+module.exports = {
+  findById,
+  findByFirebaseUid,
+  createUser,
+  updateProfile,
+  updateProfileWithAddress,
+  updateApprovalStatus,
+  updatePartnerRegistration,
+  findAll,
+  findAllDeliveryPartners,
+  anonymizeUser,
 };

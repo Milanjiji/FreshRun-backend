@@ -10,6 +10,7 @@ const productRoutes = require('./routes/productRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const driverRoutes = require('./routes/driverRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const db = require('./config/db');
 const socketUtils = require('./utils/socket');
 
