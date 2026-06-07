@@ -136,9 +136,9 @@ const orderModel = {
     const query = `
       INSERT INTO orders (
         user_id, store_id, items, subtotal, handling_fee, delivery_fee, 
-        rainy_surge_fee, late_night_fee, delivery_tip, total_amount, delivery_address, address_id, is_pickup
+        rainy_surge_fee, late_night_fee, delivery_tip, total_amount, delivery_address, address_id, is_pickup, payment_mode
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *;
     `;
 
@@ -155,7 +155,8 @@ const orderModel = {
       total_amount,
       JSON.stringify(resolvedDeliveryAddress),
       resolvedAddressId,
-      is_pickup || false
+      is_pickup || false,
+      orderData.payment_mode || 'cod'
     ];
 
     const result = await db.query(query, values);

@@ -37,6 +37,7 @@ app.use('/products', productRoutes);
 app.use('/settings', settingsRoutes);
 app.use('/orders', orderRoutes);
 app.use('/drivers', driverRoutes);
+app.use('/payments', paymentRoutes);
 
 
 // Health check

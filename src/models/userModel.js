@@ -8,7 +8,8 @@ const findById = async (id) => {
     `SELECT u.id, u.firebase_uid, u.phone, u.role, u.full_name, u.email, u.aadhar_number, u.aadhar_image, u.approval_status, 
             u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
             a.latitude as current_address_latitude, a.longitude as current_address_longitude,
-            u.total_earnings, u.withdrawable_earnings
+            u.total_earnings, u.withdrawable_earnings,
+            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference
      FROM users u
      LEFT JOIN addresses a ON u.current_address_id = a.id
      WHERE u.id = $1`,
@@ -25,7 +26,8 @@ const findByFirebaseUid = async (firebaseUid) => {
     `SELECT u.id, u.firebase_uid, u.phone, u.role, u.full_name, u.email, u.aadhar_number, u.aadhar_image, u.approval_status, 
             u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
             a.latitude as current_address_latitude, a.longitude as current_address_longitude,
-            u.total_earnings, u.withdrawable_earnings
+            u.total_earnings, u.withdrawable_earnings,
+            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference
      FROM users u
      LEFT JOIN addresses a ON u.current_address_id = a.id
      WHERE u.firebase_uid = $1`,
@@ -72,7 +74,7 @@ const updateProfile = async (id, { fullName, email, houseNumber, addressLine, la
  * Get all users, optionally filtered by role
  */
 const findAll = async (role) => {
-  let query = 'SELECT id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, is_profile_complete, is_active, created_at FROM users';
+  let query = 'SELECT id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, is_profile_complete, is_active, created_at, razorpay_account_id, razorpay_kyc_status FROM users';
   const params = [];
 
   if (role) {
@@ -113,9 +115,40 @@ const updatePartnerRegistration = async (id, { fullName, email, aadharNumber, aa
  */
 const findAllDeliveryPartners = async () => {
   const result = await db.query(
-    "SELECT id, phone, full_name, email, aadhar_number, aadhar_image, approval_status, created_at FROM users WHERE role = 'delivery' ORDER BY created_at DESC"
+    "SELECT id, phone, full_name, email, aadhar_number, aadhar_image, approval_status, created_at, razorpay_account_id, razorpay_kyc_status FROM users WHERE role = 'delivery' ORDER BY created_at DESC"
   );
   return result.rows;
+};
+
+/**
+ * Update Razorpay details for a user
+ */
+const updateRazorpayDetails = async (id, { razorpay_account_id, razorpay_kyc_status, delivery_preference }) => {
+  const fields = [];
+  const values = [];
+  let index = 1;
+
+  if (razorpay_account_id !== undefined) {
+    fields.push(`razorpay_account_id = $${index++}`);
+    values.push(razorpay_account_id);
+  }
+  if (razorpay_kyc_status !== undefined) {
+    fields.push(`razorpay_kyc_status = $${index++}`);
+    values.push(razorpay_kyc_status);
+  }
+  if (delivery_preference !== undefined) {
+    fields.push(`delivery_preference = $${index++}`);
+    values.push(delivery_preference);
+  }
+
+  if (fields.length === 0) return null;
+
+  values.push(id);
+  const result = await db.query(
+    `UPDATE users SET ${fields.join(', ')} WHERE id = $${index} RETURNING *`,
+    values
+  );
+  return result.rows[0];
 };
 
 /**
@@ -155,46 +188,4 @@ module.exports = {
   findAllDeliveryPartners,
   anonymizeUser,
   updateRazorpayDetails,
-};
-e, approval_status, created_at FROM users WHERE role = 'delivery' ORDER BY created_at DESC"
-  );
-  return result.rows;
-};
-
-/**
- * Soft delete a user by anonymizing their personal data
- */
-const anonymizeUser = async (id) => {
-  const result = await db.query(
-    `UPDATE users 
-     SET full_name = 'Deleted User', 
-         email = NULL, 
-         phone = 'DELETED_' || id, 
-         firebase_uid = 'DELETED_' || id,
-         aadhar_number = NULL, 
-         aadhar_image = NULL, 
-         fcm_token = NULL,
-         house_number = NULL,
-         address_line = NULL,
-         landmark = NULL,
-         delivery_message = NULL,
-         current_address_id = NULL,
-         is_active = false 
-     WHERE id = $1 RETURNING *`,
-    [id]
-  );
-  return result.rows[0];
-};
-
-module.exports = {
-  findById,
-  findByFirebaseUid,
-  createUser,
-  updateProfile,
-  updateProfileWithAddress,
-  updateApprovalStatus,
-  updatePartnerRegistration,
-  findAll,
-  findAllDeliveryPartners,
-  anonymizeUser,
 };

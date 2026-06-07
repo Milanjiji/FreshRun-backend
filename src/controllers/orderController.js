@@ -113,7 +113,8 @@ const createOrder = async (req, res) => {
       total_amount: total_amount || 0,
       delivery_address: delivery_address || {},
       address_id: address_id || null,
-      is_pickup: is_pickup || false
+      is_pickup: is_pickup || false,
+      payment_mode: payment_mode || 'cod'
     };
 
     const newOrder = await orderModel.createOrder(orderData);

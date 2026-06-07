@@ -141,6 +141,9 @@ const getProfile = async (req, res) => {
         totalEarnings: user.total_earnings ? parseFloat(user.total_earnings) : 0,
         withdrawableEarnings: user.withdrawable_earnings ? parseFloat(user.withdrawable_earnings) : 0,
         todayEarnings: todayEarnings,
+        razorpay_account_id: user.razorpay_account_id,
+        razorpay_kyc_status: user.razorpay_kyc_status,
+        delivery_preference: user.delivery_preference
       },
     });
 
@@ -349,6 +352,10 @@ module.exports = {
   getDeliveryPartners,
   handleApproval,
   updateFcmToken,
+  getUserById,
+  deleteAccount,
+};
+en,
   getUserById,
   deleteAccount,
 };
