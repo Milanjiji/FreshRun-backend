@@ -30,18 +30,28 @@ pool.connect(async (err, client, release) => {
       await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100);");
       await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_qr_image TEXT;");
       await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_commission NUMERIC(5,2) DEFAULT 10.00;");
+      
+      // Auto-migration for orders columns
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) DEFAULT 'cod';");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'pending';");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_order_id TEXT;");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_payment_id TEXT;");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_signature TEXT;");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS rainy_surge_fee NUMERIC(10,2) DEFAULT 0.00;");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS handling_fee NUMERIC(10,2) DEFAULT 0.00;");
+
       await client.query(`
         CREATE TABLE IF NOT EXISTS earnings_transactions (
           id SERIAL PRIMARY KEY,
           user_id VARCHAR(100) REFERENCES users(id),
           amount NUMERIC(10,2) NOT NULL,
           type VARCHAR(20) NOT NULL,
-          order_id UUID REFERENCES orders(id),
+          order_id INTEGER REFERENCES orders(id),
           description TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount, upi, platform_commission, earnings_transactions columns)');
+      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount, upi, platform_commission, orders columns, earnings_transactions columns)');
     } catch (migErr) {
       console.error('⚠️ Auto-migration failed (non-critical):', migErr.message);
     } finally {
