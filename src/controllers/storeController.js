@@ -1,6 +1,6 @@
 const storeModel = require('../models/storeModel');
 const userModel = require('../models/userModel');
-const { generateHash } = require('../utils/hash');
+const { generateHash, normalizePhone } = require('../utils/hash');
 const socketUtils = require('../utils/socket');
 
 /**
@@ -46,17 +46,19 @@ const createStore = async (req, res) => {
     }
 
     // 2. Generate Deterministic ID for Store from its primary phone
-    const storeId = generateHash(storePhone1);
+    const normalizedStorePhone = normalizePhone(storePhone1);
+    const storeId = generateHash(normalizedStorePhone);
     
     // 4. Generate Deterministic ID for Owner from their primary phone
-    const ownerId = generateHash(ownerPhone1);
+    const normalizedOwnerPhone = normalizePhone(ownerPhone1);
+    const ownerId = generateHash(normalizedOwnerPhone);
 
     // 4. Check if owner exists, if not create them
     let owner = await userModel.findById(ownerId);
     if (!owner) {
       console.log('Creating new owner user...');
-      const placeholderFirebaseUid = `OWNER_PENDING_${ownerPhone1}`;
-      owner = await userModel.createUser(ownerId, placeholderFirebaseUid, ownerPhone1, 'owner');
+      const placeholderFirebaseUid = `OWNER_PENDING_${normalizedOwnerPhone}`;
+      owner = await userModel.createUser(ownerId, placeholderFirebaseUid, normalizedOwnerPhone, 'owner');
     }
 
     // Update owner profile with full details (Safely handle missing Aadhar info from web)
@@ -75,8 +77,8 @@ const createStore = async (req, res) => {
       description: description || null,
       category,
       image_url: imageUrl || null,
-      phone_1: storePhone1,
-      phone_2: storePhone2 || ownerPhone2 || null,
+      phone_1: normalizedStorePhone,
+      phone_2: storePhone2 ? normalizePhone(storePhone2) : (ownerPhone2 ? normalizePhone(ownerPhone2) : null),
       house_number: storeHouseNumber || null,
       address_line: storeAddressLine || null,
       landmark: storeLandmark || null,

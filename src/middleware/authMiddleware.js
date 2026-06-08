@@ -1,5 +1,5 @@
 const admin = require('../config/firebase');
-const { generateHash } = require('../utils/hash');
+const { generateHash, normalizePhone } = require('../utils/hash');
 const userModel = require('../models/userModel');
 
 const authenticateToken = async (req, res, next) => {
@@ -15,7 +15,7 @@ const authenticateToken = async (req, res, next) => {
     const decodedToken = await admin.auth().verifyIdToken(token);
     
     // Generate deterministic userId from verified phone number
-    const userId = generateHash(decodedToken.phone_number);
+    const userId = generateHash(normalizePhone(decodedToken.phone_number));
     
     // Fetch full user data to get the role
     const user = await userModel.findById(userId);

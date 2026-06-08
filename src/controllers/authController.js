@@ -1,6 +1,6 @@
 const admin = require('../config/firebase');
 const userModel = require('../models/userModel');
-const { generateHash } = require('../utils/hash');
+const { generateHash, normalizePhone } = require('../utils/hash');
 const db = require('../config/db');
 
 /**
@@ -50,14 +50,15 @@ const login = async (req, res) => {
     }
 
     // 2. Generate Deterministic ID from Phone
-    const userId = generateHash(phone);
+    const normalizedPhone = normalizePhone(phone);
+    const userId = generateHash(normalizedPhone);
 
     // 3. Check if user exists in DB or create one
     let user = await userModel.findById(userId);
 
     if (!user) {
       console.log('Debug: User not found in DB. Creating new user...');
-      user = await userModel.createUser(userId, firebase_uid, phone, role);
+      user = await userModel.createUser(userId, firebase_uid, normalizedPhone, role);
     }
 
     // 4. Calculate today's earnings if delivery partner
@@ -144,14 +145,15 @@ const registerPartner = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Phone number missing in token' });
     }
 
-    const userId = generateHash(phone);
+    const normalizedPhone = normalizePhone(phone);
+    const userId = generateHash(normalizedPhone);
     console.log('Registering userId:', userId);
 
     let user = await userModel.findById(userId);
 
     if (!user) {
       console.log('New partner — creating user record');
-      user = await userModel.createUser(userId, firebase_uid, phone, 'delivery');
+      user = await userModel.createUser(userId, firebase_uid, normalizedPhone, 'delivery');
 
       // --- Notification for Admin ---
       try {
@@ -208,7 +210,8 @@ const registerPartner = async (req, res) => {
 const checkOwner = async (req, res) => {
   try {
     const { phone } = req.params;
-    const userId = generateHash(phone);
+    const normalizedPhone = normalizePhone(phone);
+    const userId = generateHash(normalizedPhone);
     const user = await userModel.findById(userId);
 
     if (user && user.role === 'owner') {
@@ -244,7 +247,8 @@ const checkOwner = async (req, res) => {
 const checkPartner = async (req, res) => {
   try {
     const { phone } = req.params;
-    const userId = generateHash(phone);
+    const normalizedPhone = normalizePhone(phone);
+    const userId = generateHash(normalizedPhone);
     const user = await userModel.findById(userId);
 
     if (user) {
