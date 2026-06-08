@@ -22,5 +22,7 @@ router.post('/fcm-token', authenticateToken, userController.updateFcmToken);
 router.delete('/account', authenticateToken, userController.deleteAccount);
 
 router.get('/:id', userController.getUserById);
+router.post('/:id/payout', userController.recordManualPayout);
+router.get('/:id/transactions', userController.getUserTransactions);
 
 module.exports = router;

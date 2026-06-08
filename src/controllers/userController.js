@@ -142,8 +142,12 @@ const getProfile = async (req, res) => {
         withdrawableEarnings: user.withdrawable_earnings ? parseFloat(user.withdrawable_earnings) : 0,
         todayEarnings: todayEarnings,
         razorpay_account_id: user.razorpay_account_id,
-        razorpay_kyc_status: user.razorpay_kyc_status,
-        delivery_preference: user.delivery_preference
+        razorpay_kyc_status: process.env.ENABLE_RAZORPAY === 'true' ? user.razorpay_kyc_status : 'activated',
+        delivery_preference: user.delivery_preference,
+        upiId: user.upi_id,
+        upiQrImage: user.upi_qr_image,
+        upi_id: user.upi_id,
+        upi_qr_image: user.upi_qr_image
       },
     });
 
@@ -184,7 +188,11 @@ const getAllUsers = async (req, res) => {
         createdAt: user.created_at,
         approvalStatus: user.approval_status,
         aadharNumber: user.aadhar_number,
-        aadharImage: user.aadhar_image
+        aadharImage: user.aadhar_image,
+        upiId: user.upi_id,
+        upiQrImage: user.upi_qr_image,
+        totalEarnings: user.total_earnings ? parseFloat(user.total_earnings) : 0,
+        withdrawableEarnings: user.withdrawable_earnings ? parseFloat(user.withdrawable_earnings) : 0
       })),
     });
   } catch (error) {
@@ -217,13 +225,13 @@ const getDeliveryPartners = async (req, res) => {
 const handleApproval = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body; // 'approved' or 'rejected'
+    const { status, rejectionReason } = req.body; // 'approved' or 'rejected'
 
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ success: false, error: 'Invalid status' });
     }
 
-    const updatedUser = await userModel.updateApprovalStatus(id, status);
+    const updatedUser = await userModel.updateApprovalStatus(id, status, status === 'rejected' ? rejectionReason : null);
     
     if (!updatedUser) {
       return res.status(404).json({ success: false, error: 'User not found' });
@@ -345,6 +353,91 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+/**
+ * Record manual payout for a partner/owner (deduct from withdrawable_earnings)
+ * POST /user/:id/payout
+ */
+const recordManualPayout = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, description } = req.body;
+
+    const payoutAmount = parseFloat(amount);
+    if (!payoutAmount || payoutAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'Invalid payout amount' });
+    }
+
+    const user = await userModel.findById(id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const withdrawable = parseFloat(user.withdrawable_earnings) || 0;
+    if (payoutAmount > withdrawable) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Insufficient balance. User has only ₹${withdrawable.toFixed(2)} remaining.` 
+      });
+    }
+
+    // Deduct withdrawable earnings
+    await db.query(
+      `UPDATE users 
+       SET withdrawable_earnings = COALESCE(withdrawable_earnings, 0) - $1 
+       WHERE id = $2`,
+      [payoutAmount, id]
+    );
+
+    // Record transaction in ledger
+    await db.query(
+      `INSERT INTO earnings_transactions (user_id, amount, type, description) 
+       VALUES ($1, $2, 'payout', $3)`,
+      [id, payoutAmount, description || 'Manual payout recorded']
+    );
+
+    const updatedUser = await userModel.findById(id);
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Payout recorded successfully',
+      data: {
+        id: updatedUser.id,
+        totalEarnings: updatedUser.total_earnings ? parseFloat(updatedUser.total_earnings) : 0,
+        withdrawableEarnings: updatedUser.withdrawable_earnings ? parseFloat(updatedUser.withdrawable_earnings) : 0
+      }
+    });
+
+  } catch (error) {
+    console.error('Record Payout Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to record manual payout' });
+  }
+};
+
+/**
+ * Get user's transaction ledger history
+ * GET /user/:id/transactions
+ */
+const getUserTransactions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `SELECT id, amount, type, order_id, description, created_at 
+       FROM earnings_transactions 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC`,
+      [id]
+    );
+
+    res.status(200).json({ 
+      success: true, 
+      data: result.rows 
+    });
+  } catch (error) {
+    console.error('Get User Transactions Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch transaction logs' });
+  }
+};
+
 module.exports = {
   updateProfile,
   getProfile,
@@ -354,4 +447,6 @@ module.exports = {
   updateFcmToken,
   getUserById,
   deleteAccount,
+  recordManualPayout,
+  getUserTransactions
 };

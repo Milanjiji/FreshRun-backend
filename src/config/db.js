@@ -23,7 +23,25 @@ pool.connect(async (err, client, release) => {
       await client.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS withdrawable_earnings NUMERIC(10,2) DEFAULT 0.00;');
       await client.query("ALTER TABLE stores ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'pending';");
       await client.query("ALTER TABLE stores ADD COLUMN IF NOT EXISTS max_discount NUMERIC(5,2) DEFAULT 0.00;");
-      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount columns)');
+      await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS bank_account_number VARCHAR(30);");
+      await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS bank_ifsc VARCHAR(15);");
+      await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS pan_number VARCHAR(15);");
+      await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS razorpay_rejection_reason TEXT;");
+      await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100);");
+      await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_qr_image TEXT;");
+      await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_commission NUMERIC(5,2) DEFAULT 10.00;");
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS earnings_transactions (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(100) REFERENCES users(id),
+          amount NUMERIC(10,2) NOT NULL,
+          type VARCHAR(20) NOT NULL,
+          order_id UUID REFERENCES orders(id),
+          description TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount, upi, platform_commission, earnings_transactions columns)');
     } catch (migErr) {
       console.error('⚠️ Auto-migration failed (non-critical):', migErr.message);
     } finally {

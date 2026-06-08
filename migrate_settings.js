@@ -11,14 +11,15 @@ const migrate = async () => {
         late_night_end VARCHAR(10) DEFAULT '05:00',
         min_delivery_fee NUMERIC DEFAULT 30,
         free_delivery_threshold NUMERIC DEFAULT 500,
+        platform_commission NUMERIC(5,2) DEFAULT 10.00,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Insert default settings if not exists
     await db.query(`
-      INSERT INTO app_settings (id, late_night_fee, late_night_start, late_night_end, min_delivery_fee, free_delivery_threshold)
-      VALUES (1, 10, '23:00', '05:00', 30, 500)
+      INSERT INTO app_settings (id, late_night_fee, late_night_start, late_night_end, min_delivery_fee, free_delivery_threshold, platform_commission)
+      VALUES (1, 10, '23:00', '05:00', 30, 500, 10.00)
       ON CONFLICT (id) DO NOTHING
     `);
 

@@ -248,6 +248,7 @@ const updateOrderStatus = async (req, res) => {
     const isCompletedNow = updatedOrder.is_completed;
 
     if (!wasCompleted && isCompletedNow) {
+      // 1. Delivery Partner Earnings
       const partnerId = updatedOrder.delivery_partner_id;
       if (partnerId) {
         const fee = parseFloat(updatedOrder.delivery_fee) || 0;
@@ -267,12 +268,61 @@ const updateOrderStatus = async (req, res) => {
               [earningsToAdd, partnerId]
             );
             
+            // Record transaction in ledger
+            await db.query(
+              `INSERT INTO earnings_transactions (user_id, amount, type, order_id, description) 
+               VALUES ($1, $2, 'earning', $3, $4)`,
+              [partnerId, earningsToAdd, id, `Earning for delivery of order #${id}`]
+            );
+            
             // Instantly transfer money to delivery boy via Razorpay Route
             await paymentController.payDeliveryBoy(partnerId, earningsToAdd, id);
             
           } catch (err) {
-            console.error('❌ Failed to update partner earnings in DB:', err.message);
+            console.error('❌ Failed to update partner earnings in DB/ledger:', err.message);
           }
+        }
+      }
+
+      // 2. Store Owner Earnings
+      if (updatedOrder.store_id) {
+        try {
+          // Fetch store owner ID
+          const storeRes = await db.query('SELECT owner_id, name FROM stores WHERE id = $1', [updatedOrder.store_id]);
+          const ownerId = storeRes.rows[0]?.owner_id;
+          const storeName = storeRes.rows[0]?.name || 'Store';
+
+          if (ownerId) {
+            // Fetch platform commission rate
+            const settingsRes = await db.query('SELECT platform_commission FROM app_settings WHERE id = 1');
+            const commissionPercent = settingsRes.rows[0]?.platform_commission !== null && settingsRes.rows[0]?.platform_commission !== undefined
+              ? parseFloat(settingsRes.rows[0].platform_commission)
+              : 10.00; // default 10%
+
+            const subtotal = parseFloat(updatedOrder.subtotal) || 0;
+            const storeShare = subtotal * (1 - (commissionPercent / 100));
+
+            if (storeShare > 0) {
+              console.log(`[Earnings] Crediting store owner ${ownerId} of "${storeName}" with ₹${storeShare.toFixed(2)} (commission: ${commissionPercent}%) for order #${id}`);
+              
+              await db.query(
+                `UPDATE users 
+                 SET total_earnings = COALESCE(total_earnings, 0) + $1,
+                     withdrawable_earnings = COALESCE(withdrawable_earnings, 0) + $1
+                 WHERE id = $2`,
+                [storeShare, ownerId]
+              );
+
+              // Record transaction in ledger
+              await db.query(
+                `INSERT INTO earnings_transactions (user_id, amount, type, order_id, description) 
+                 VALUES ($1, $2, 'earning', $3, $4)`,
+                [ownerId, storeShare, id, `Earning for order #${id} from store "${storeName}"`]
+              );
+            }
+          }
+        } catch (err) {
+          console.error('❌ Failed to update store owner earnings in DB/ledger:', err.message);
         }
       }
     }

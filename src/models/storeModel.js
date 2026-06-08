@@ -61,7 +61,10 @@ const getAllStores = async (filters = {}) => {
 
   // Filter by approval status: Both store and owner must be approved for customers
   if (include_pending !== 'true' && include_pending !== true) {
-    query += ` AND s.approval_status = 'approved' AND u.approval_status = 'approved' AND s.razorpay_kyc_status = 'activated'`;
+    query += ` AND s.approval_status = 'approved' AND u.approval_status = 'approved'`;
+    if (process.env.ENABLE_RAZORPAY === 'true') {
+      query += ` AND s.razorpay_kyc_status = 'activated'`;
+    }
     
     // Only show stores with at least one product for customers
     query += ` AND EXISTS (SELECT 1 FROM products p WHERE p.store_id = s.id AND p.is_active = true)`;

@@ -120,9 +120,15 @@ const getStores = async (req, res) => {
   try {
     const { category, is_veg, include_inactive, include_pending } = req.query;
     const stores = await storeModel.getAllStores({ category, is_veg, include_inactive, include_pending });
+    
+    // Override razorpay_kyc_status to 'activated' if Razorpay is disabled
+    const mappedStores = process.env.ENABLE_RAZORPAY === 'true' 
+      ? stores 
+      : stores.map(store => ({ ...store, razorpay_kyc_status: 'activated' }));
+
     res.status(200).json({
       success: true,
-      data: stores
+      data: mappedStores
     });
   } catch (error) {
     console.error('Error fetching stores:', error);
@@ -147,6 +153,11 @@ const getStoreById = async (req, res) => {
         success: false,
         error: 'Store not found'
       });
+    }
+
+    // Override razorpay_kyc_status to 'activated' if Razorpay is disabled
+    if (process.env.ENABLE_RAZORPAY !== 'true' && store) {
+      store.razorpay_kyc_status = 'activated';
     }
 
     res.status(200).json({

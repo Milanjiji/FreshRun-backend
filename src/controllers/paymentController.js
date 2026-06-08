@@ -15,58 +15,80 @@ const razorpay = new Razorpay({
  * Onboard a store or delivery partner to Razorpay Route
  */
 const onboardPartner = async (req, res) => {
-  const { role, bankDetails, pan, name, email, phone, businessName } = req.body;
+  const { role, bankDetails, pan, name, email, phone, businessName, upiId, upiQrImage } = req.body;
   const userId = req.user.id;
 
   try {
-    // 1. Create Linked Account on Razorpay
-    // Note: For Test Mode, this is simplified. In Live, more details are needed.
-    const account = await razorpay.accounts.create({
-      type: 'route',
-      email: email,
-      phone: phone,
-      legal_business_name: businessName || name,
-      contact_name: name,
-      profile: {
-        category: role === 'owner' ? 'food_beverage' : 'logistics',
-        subcategory: role === 'owner' ? 'restaurants' : 'delivery_services',
-        addresses: {
-          registered: {
-            street1: 'Test Street',
-            city: 'Test City',
-            state: 'KA',
-            postal_code: '560001',
-            country: 'IN'
-          }
-        }
-      },
-      legal_entity_type: 'individual',
-      notes: {
-        user_id: userId,
-        role: role
-      }
-    });
+    let accountId;
+    let kycStatus = 'activated'; // Default to activated when Razorpay is disabled
 
-    // 2. Update Database with Razorpay Account ID
+    if (process.env.ENABLE_RAZORPAY === 'true') {
+      // 1. Create Linked Account on Razorpay
+      // Note: For Test Mode, this is simplified. In Live, more details are needed.
+      const account = await razorpay.accounts.create({
+        type: 'route',
+        email: email,
+        phone: phone,
+        legal_business_name: businessName || name,
+        contact_name: name,
+        profile: {
+          category: role === 'owner' ? 'food_beverage' : 'logistics',
+          subcategory: role === 'owner' ? 'restaurants' : 'delivery_services',
+          addresses: {
+            registered: {
+              street1: 'Test Street',
+              city: 'Test City',
+              state: 'KA',
+              postal_code: '560001',
+              country: 'IN'
+            }
+          }
+        },
+        legal_entity_type: 'individual',
+        notes: {
+          user_id: userId,
+          role: role
+        }
+      });
+      accountId = account.id;
+      kycStatus = 'created'; // Undergoes webhook validation in live Razorpay mode
+    } else {
+      accountId = `mock_upi_${userId}`;
+    }
+
+    // 2. Update Database with UPI and Razorpay Account ID details
     if (role === 'owner') {
       const store = await storeModel.getStoreById(req.body.storeId);
       if (store) {
         await storeModel.updateStore(store.id, { 
-          razorpay_account_id: account.id,
-          razorpay_kyc_status: 'created' // In test mode, it might become 'activated' immediately
+          razorpay_account_id: accountId,
+          razorpay_kyc_status: kycStatus
+        });
+        // Save owner's UPI details in users table
+        await userModel.updateRazorpayDetails(store.owner_id, {
+          upi_id: upiId || null,
+          upi_qr_image: upiQrImage || null
         });
       }
     } else if (role === 'delivery') {
       await userModel.updateRazorpayDetails(userId, { 
-        razorpay_account_id: account.id,
-        razorpay_kyc_status: 'created'
+        razorpay_account_id: accountId,
+        razorpay_kyc_status: kycStatus,
+        bank_account_number: bankDetails?.accountNumber || null,
+        bank_ifsc: bankDetails?.ifscCode || null,
+        pan_number: pan || null,
+        delivery_preference: req.body.delivery_preference || 'wait_for_online',
+        upi_id: upiId || null,
+        upi_qr_image: upiQrImage || null
       });
     }
 
     res.json({ 
       success: true, 
-      account_id: account.id, 
-      message: 'Onboarding initiated successfully' 
+      account_id: accountId, 
+      message: process.env.ENABLE_RAZORPAY === 'true' 
+        ? 'Onboarding initiated successfully' 
+        : 'Onboarding completed successfully (Razorpay bypassed, UPI details saved)' 
     });
   } catch (error) {
     console.error('Razorpay Onboarding Error:', error);
@@ -86,17 +108,18 @@ const createOrderWithSplit = async (req, res) => {
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const store = await storeModel.getStoreById(order.store_id);
-    const platformCommission = 0.10; // 10% example
-    const storeShare = order.subtotal * (1 - platformCommission);
-    
-    // Note: Delivery share would be added here if you want to split to delivery boy too
-    // For now, let's split to the Store.
     
     const options = {
       amount: Math.round(order.total_amount * 100), // in paise
       currency: "INR",
-      receipt: `receipt_${order.id}`,
-      transfers: [
+      receipt: `receipt_${order.id}`
+    };
+
+    // Only apply transfers split if Razorpay is enabled and we have a valid account ID
+    if (process.env.ENABLE_RAZORPAY === 'true' && store && store.razorpay_account_id && !store.razorpay_account_id.startsWith('mock_')) {
+      const platformCommission = 0.10; // 10% example
+      const storeShare = order.subtotal * (1 - platformCommission);
+      options.transfers = [
         {
           account: store.razorpay_account_id,
           amount: Math.round(storeShare * 100),
@@ -104,8 +127,8 @@ const createOrderWithSplit = async (req, res) => {
           notes: { order_id: order.id },
           on_hold: false
         }
-      ]
-    };
+      ];
+    }
 
     const rzpOrder = await razorpay.orders.create(options);
 
@@ -188,19 +211,49 @@ const handleWebhook = async (req, res) => {
           }
         }
       } 
-      else if (event === 'account.instantly_activated' || event === 'account.activated_kyc_pending') {
+      else if (
+        event === 'account.instantly_activated' || 
+        event === 'account.activated' ||
+        event === 'account.activated_kyc_pending' ||
+        event === 'account.needs_clarification' ||
+        event === 'account.under_review' ||
+        event === 'account.suspended' ||
+        event === 'account.rejected'
+      ) {
         const accountId = payload.account.entity.id;
-        const status = event === 'account.instantly_activated' ? 'activated' : 'kyc_pending';
+        let status = 'kyc_pending';
+        if (event === 'account.instantly_activated' || event === 'account.activated') {
+          status = 'activated';
+        } else if (event === 'account.needs_clarification') {
+          status = 'needs_clarification';
+        } else if (event === 'account.under_review') {
+          status = 'under_review';
+        } else if (event === 'account.suspended') {
+          status = 'suspended';
+        } else if (event === 'account.rejected') {
+          status = 'rejected';
+        }
+
+        const statusDetails = payload.account.entity.status_details || {};
+        const reason = statusDetails.description || statusDetails.reason || statusDetails.message || null;
         
         // Find if it's a store
         const storeRes = await db.query('SELECT id FROM stores WHERE razorpay_account_id = $1', [accountId]);
         if (storeRes.rows.length > 0) {
-          await storeModel.updateStore(storeRes.rows[0].id, { razorpay_kyc_status: status });
+          const updateData = { razorpay_kyc_status: status };
+          if (reason) {
+            updateData.rejection_reason = `Razorpay: ${reason}`;
+          }
+          await storeModel.updateStore(storeRes.rows[0].id, updateData);
         } else {
           // Check if it's a delivery partner
           const userRes = await db.query('SELECT id FROM users WHERE razorpay_account_id = $1', [accountId]);
           if (userRes.rows.length > 0) {
-            await userModel.updateRazorpayDetails(userRes.rows[0].id, { razorpay_kyc_status: status });
+            const updateData = { razorpay_kyc_status: status };
+            if (reason) {
+              updateData.razorpay_rejection_reason = reason;
+            }
+            await userModel.updateRazorpayDetails(userRes.rows[0].id, updateData);
           }
         }
       }
@@ -219,6 +272,11 @@ const handleWebhook = async (req, res) => {
  */
 const payDeliveryBoy = async (partnerId, amount, orderId) => {
   try {
+    if (process.env.ENABLE_RAZORPAY !== 'true') {
+      console.log(`[Bypassed Payout] Mock transfer of ₹${amount} to Delivery Boy ${partnerId} for order ${orderId}`);
+      return true;
+    }
+
     const userRes = await db.query('SELECT razorpay_account_id FROM users WHERE id = $1', [partnerId]);
     const partner = userRes.rows[0];
 

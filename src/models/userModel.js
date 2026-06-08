@@ -9,7 +9,9 @@ const findById = async (id) => {
             u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
             a.latitude as current_address_latitude, a.longitude as current_address_longitude,
             u.total_earnings, u.withdrawable_earnings,
-            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference, u.rejection_reason
+            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference, u.rejection_reason,
+            u.bank_account_number, u.bank_ifsc, u.pan_number, u.razorpay_rejection_reason,
+            u.upi_id, u.upi_qr_image
      FROM users u
      LEFT JOIN addresses a ON u.current_address_id = a.id
      WHERE u.id = $1`,
@@ -27,7 +29,9 @@ const findByFirebaseUid = async (firebaseUid) => {
             u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
             a.latitude as current_address_latitude, a.longitude as current_address_longitude,
             u.total_earnings, u.withdrawable_earnings,
-            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference, u.rejection_reason
+            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference, u.rejection_reason,
+            u.bank_account_number, u.bank_ifsc, u.pan_number, u.razorpay_rejection_reason,
+            u.upi_id, u.upi_qr_image
      FROM users u
      LEFT JOIN addresses a ON u.current_address_id = a.id
      WHERE u.firebase_uid = $1`,
@@ -74,7 +78,7 @@ const updateProfile = async (id, { fullName, email, houseNumber, addressLine, la
  * Get all users, optionally filtered by role
  */
 const findAll = async (role) => {
-  let query = 'SELECT id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, is_profile_complete, is_active, created_at, razorpay_account_id, razorpay_kyc_status FROM users';
+  let query = 'SELECT id, firebase_uid, phone, role, full_name, email, aadhar_number, aadhar_image, approval_status, house_number, address_line, landmark, pincode, city, delivery_message, is_profile_complete, is_active, created_at, razorpay_account_id, razorpay_kyc_status, bank_account_number, bank_ifsc, pan_number, razorpay_rejection_reason, upi_id, upi_qr_image, total_earnings, withdrawable_earnings FROM users';
   const params = [];
 
   if (role) {
@@ -91,10 +95,10 @@ const findAll = async (role) => {
 /**
  * Update user approval status (Admin Only)
  */
-const updateApprovalStatus = async (id, status) => {
+const updateApprovalStatus = async (id, status, rejectionReason = null) => {
   const result = await db.query(
-    'UPDATE users SET approval_status = $1 WHERE id = $2 RETURNING *',
-    [status, id]
+    'UPDATE users SET approval_status = $1, rejection_reason = $2 WHERE id = $3 RETURNING *',
+    [status, rejectionReason, id]
   );
   return result.rows[0];
 };
@@ -115,7 +119,7 @@ const updatePartnerRegistration = async (id, { fullName, email, aadharNumber, aa
  */
 const findAllDeliveryPartners = async () => {
   const result = await db.query(
-    "SELECT id, phone, full_name, email, aadhar_number, aadhar_image, approval_status, created_at, razorpay_account_id, razorpay_kyc_status FROM users WHERE role = 'delivery' ORDER BY created_at DESC"
+    "SELECT id, phone, full_name, email, aadhar_number, aadhar_image, approval_status, created_at, razorpay_account_id, razorpay_kyc_status, bank_account_number, bank_ifsc, pan_number, razorpay_rejection_reason, upi_id, upi_qr_image, total_earnings, withdrawable_earnings FROM users WHERE role = 'delivery' ORDER BY created_at DESC"
   );
   return result.rows;
 };
@@ -123,7 +127,7 @@ const findAllDeliveryPartners = async () => {
 /**
  * Update Razorpay details for a user
  */
-const updateRazorpayDetails = async (id, { razorpay_account_id, razorpay_kyc_status, delivery_preference }) => {
+const updateRazorpayDetails = async (id, { razorpay_account_id, razorpay_kyc_status, delivery_preference, bank_account_number, bank_ifsc, pan_number, razorpay_rejection_reason, upi_id, upi_qr_image }) => {
   const fields = [];
   const values = [];
   let index = 1;
@@ -139,6 +143,30 @@ const updateRazorpayDetails = async (id, { razorpay_account_id, razorpay_kyc_sta
   if (delivery_preference !== undefined) {
     fields.push(`delivery_preference = $${index++}`);
     values.push(delivery_preference);
+  }
+  if (bank_account_number !== undefined) {
+    fields.push(`bank_account_number = $${index++}`);
+    values.push(bank_account_number);
+  }
+  if (bank_ifsc !== undefined) {
+    fields.push(`bank_ifsc = $${index++}`);
+    values.push(bank_ifsc);
+  }
+  if (pan_number !== undefined) {
+    fields.push(`pan_number = $${index++}`);
+    values.push(pan_number);
+  }
+  if (razorpay_rejection_reason !== undefined) {
+    fields.push(`razorpay_rejection_reason = $${index++}`);
+    values.push(razorpay_rejection_reason);
+  }
+  if (upi_id !== undefined) {
+    fields.push(`upi_id = $${index++}`);
+    values.push(upi_id);
+  }
+  if (upi_qr_image !== undefined) {
+    fields.push(`upi_qr_image = $${index++}`);
+    values.push(upi_qr_image);
   }
 
   if (fields.length === 0) return null;
