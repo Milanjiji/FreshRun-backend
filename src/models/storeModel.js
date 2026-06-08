@@ -9,8 +9,8 @@ const createStore = async (storeData) => {
       id, owner_id, name, description, category, image_url, 
       phone_1, phone_2, house_number, address_line, landmark, pincode, city,
       latitude, longitude, maps_link, veg_type, handling_fee, max_delivery_distance,
-      approval_status, is_active
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) 
+      approval_status, is_active, gst_number
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) 
     RETURNING *`,
     [
       storeData.id, 
@@ -32,8 +32,9 @@ const createStore = async (storeData) => {
       storeData.veg_type, 
       storeData.handling_fee, 
       storeData.max_delivery_distance,
-      'approved', // Default to approved when admin creates it
-      true
+      storeData.approval_status || 'pending',
+      true,
+      storeData.gst_number || null
     ]
   );
   return result.rows[0];

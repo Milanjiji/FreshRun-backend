@@ -9,7 +9,7 @@ const findById = async (id) => {
             u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
             a.latitude as current_address_latitude, a.longitude as current_address_longitude,
             u.total_earnings, u.withdrawable_earnings,
-            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference
+            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference, u.rejection_reason
      FROM users u
      LEFT JOIN addresses a ON u.current_address_id = a.id
      WHERE u.id = $1`,
@@ -27,7 +27,7 @@ const findByFirebaseUid = async (firebaseUid) => {
             u.house_number, u.address_line, u.landmark, u.pincode, u.city, u.delivery_message, u.current_address_id, u.is_profile_complete, u.is_active, u.created_at,
             a.latitude as current_address_latitude, a.longitude as current_address_longitude,
             u.total_earnings, u.withdrawable_earnings,
-            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference
+            u.razorpay_account_id, u.razorpay_kyc_status, u.delivery_preference, u.rejection_reason
      FROM users u
      LEFT JOIN addresses a ON u.current_address_id = a.id
      WHERE u.firebase_uid = $1`,

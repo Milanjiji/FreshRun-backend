@@ -32,7 +32,9 @@ const createStore = async (req, res) => {
       ownerPhone2,
       ownerAadharNumber,
       ownerAadharImage,
-      maxDeliveryDistance
+      maxDeliveryDistance,
+      gstNumber,
+      approvalStatus
     } = req.body;
 
     // 1. Basic validation
@@ -85,7 +87,9 @@ const createStore = async (req, res) => {
       maps_link: mapsLink || null,
       veg_type: vegType || 'both',
       handling_fee: handlingFee ? parseFloat(handlingFee) : 0,
-      max_delivery_distance: maxDeliveryDistance ? parseFloat(maxDeliveryDistance) : 5.0
+      max_delivery_distance: maxDeliveryDistance ? parseFloat(maxDeliveryDistance) : 5.0,
+      gst_number: gstNumber || null,
+      approval_status: approvalStatus || 'pending'
     };
 
 
