@@ -22,7 +22,8 @@ const createOrder = async (req, res) => {
       total_amount,
       delivery_address,
       address_id,
-      is_pickup
+      is_pickup,
+      payment_mode
     } = req.body;
 
     if (!items || !total_amount || !store_id) {
