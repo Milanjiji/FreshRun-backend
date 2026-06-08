@@ -70,7 +70,8 @@ const onboardPartner = async (req, res) => {
     });
   } catch (error) {
     console.error('Razorpay Onboarding Error:', error);
-    res.status(500).json({ error: error.message || 'Failed to onboard partner' });
+    const errorDetails = error.error?.description || error.description || error.message || 'Failed to onboard partner';
+    res.status(500).json({ error: errorDetails });
   }
 };
 
