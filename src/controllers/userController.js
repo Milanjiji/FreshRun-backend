@@ -421,10 +421,25 @@ const getUserTransactions = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT id, amount, type, order_id, description, created_at 
-       FROM earnings_transactions 
-       WHERE user_id = $1 
-       ORDER BY created_at DESC`,
+      `SELECT 
+        et.id, 
+        et.amount, 
+        et.type, 
+        et.order_id, 
+        et.description, 
+        et.created_at,
+        o.subtotal, 
+        o.delivery_fee, 
+        o.handling_fee, 
+        o.rainy_surge_fee, 
+        o.late_night_fee, 
+        o.delivery_tip, 
+        o.total_amount, 
+        o.payment_mode
+       FROM earnings_transactions et
+       LEFT JOIN orders o ON et.order_id = o.id
+       WHERE et.user_id = $1 
+       ORDER BY et.created_at DESC`,
       [id]
     );
 
