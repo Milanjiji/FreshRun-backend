@@ -39,6 +39,7 @@ pool.connect(async (err, client, release) => {
       await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS razorpay_signature TEXT;");
       await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS rainy_surge_fee NUMERIC(10,2) DEFAULT 0.00;");
       await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS handling_fee NUMERIC(10,2) DEFAULT 0.00;");
+      await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_pin VARCHAR(6);");
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS earnings_transactions (

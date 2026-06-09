@@ -157,6 +157,9 @@ const getAllOrders = async (req, res) => {
 const getAvailableOrders = async (req, res) => {
   try {
     const orders = await orderModel.getAvailableOrders();
+    orders.forEach(order => {
+      if (order) delete order.delivery_pin;
+    });
     res.status(200).json({ success: true, orders });
   } catch (error) {
     console.error('Error fetching available orders:', error);
@@ -169,6 +172,9 @@ const getPartnerOrders = async (req, res) => {
     const partner_id = req.user.id;
     const includeCompleted = req.query.history === 'true';
     const orders = await orderModel.getPartnerOrders(partner_id, includeCompleted);
+    orders.forEach(order => {
+      if (order) delete order.delivery_pin;
+    });
     res.status(200).json({ success: true, orders });
   } catch (error) {
     console.error('Error fetching partner orders:', error);
@@ -185,6 +191,9 @@ const optInToOrder = async (req, res) => {
     if (!updatedOrder) {
       return res.status(404).json({ success: false, error: 'Order already claimed or not found' });
     }
+
+    // Delete delivery_pin so it is not leaked to the partner or socket listeners
+    delete updatedOrder.delivery_pin;
 
     // Emit real-time update
     try {
@@ -222,6 +231,11 @@ const getOrderById = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
+    // Only allow the customer who placed the order to see the PIN
+    if (req.user && req.user.id !== order.user_id) {
+      delete order.delivery_pin;
+    }
+
     res.status(200).json({ success: true, order });
   } catch (error) {
     console.error('Error fetching order by ID:', error);
@@ -239,10 +253,29 @@ const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
+    // Verify Delivery PIN if transitioning to delivered status via delivery partner app
+    if ((updates.status === 'delivered' || updates.is_completed === true) && req.headers['authorization']) {
+      const { delivery_pin } = updates;
+      if (!delivery_pin) {
+        return res.status(400).json({ success: false, error: 'Delivery PIN verification is required.' });
+      }
+      if (String(delivery_pin) !== String(existingOrder.delivery_pin)) {
+        return res.status(400).json({ success: false, error: 'Invalid delivery verification PIN. Please try again.' });
+      }
+      // Strip delivery_pin from updates before updating the DB row
+      delete updates.delivery_pin;
+    } else {
+      // Strip delivery_pin from updates if sent by accident on other status updates
+      delete updates.delivery_pin;
+    }
+
     const updatedOrder = await orderModel.updateOrderStatus(id, updates);
     if (!updatedOrder) {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
+
+    // Hide delivery_pin from socket broadcasts and HTTP responses
+    delete updatedOrder.delivery_pin;
 
     // Check if the order transitioned to completed status
     const wasCompleted = existingOrder.is_completed;

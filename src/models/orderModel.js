@@ -136,12 +136,14 @@ const orderModel = {
       }
     }
 
+    const delivery_pin = Math.floor(100000 + Math.random() * 900000).toString();
+
     const query = `
       INSERT INTO orders (
         user_id, store_id, items, subtotal, handling_fee, delivery_fee, 
-        rainy_surge_fee, late_night_fee, delivery_tip, total_amount, delivery_address, address_id, is_pickup, payment_mode
+        rainy_surge_fee, late_night_fee, delivery_tip, total_amount, delivery_address, address_id, is_pickup, payment_mode, delivery_pin
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *;
     `;
 
@@ -159,7 +161,8 @@ const orderModel = {
       JSON.stringify(resolvedDeliveryAddress),
       resolvedAddressId,
       is_pickup || false,
-      orderData.payment_mode || 'cod'
+      orderData.payment_mode || 'cod',
+      delivery_pin
     ];
 
     const result = await db.query(query, values);
