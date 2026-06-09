@@ -40,6 +40,8 @@ const orderDetailsSelect = `
          s.longitude as store_lng,
          s.name as store_name,
          s.address_line as store_address,
+         dp.full_name as delivery_partner_name,
+         dp.phone as delivery_partner_phone,
          json_build_object(
            'line1', COALESCE(
              CASE WHEN a.house_number IS NOT NULL AND a.house_number <> '' 
@@ -58,6 +60,7 @@ const orderDetailsSelect = `
   LEFT JOIN users u ON o.user_id = u.id
   ${orderAddressJoin}
   LEFT JOIN stores s ON o.store_id = s.id
+  LEFT JOIN users dp ON o.delivery_partner_id = dp.id
 `;
 
 const getOrderDetailsById = async (id) => {
