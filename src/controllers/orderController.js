@@ -128,6 +128,22 @@ const createOrder = async (req, res) => {
         const io = socketUtils.getIO();
         io.to('admin').emit('new_order', newOrder);
         
+        // Notify the specific store owner's room
+        io.to(`store_${newOrder.store_id}`).emit('new_order', newOrder);
+        
+        // Query the owner of the store to send a push notification
+        const storeOwnerRes = await db.query('SELECT owner_id, name FROM stores WHERE id = $1', [newOrder.store_id]);
+        const ownerId = storeOwnerRes.rows[0]?.owner_id;
+        const storeName = storeOwnerRes.rows[0]?.name || 'Your store';
+        if (ownerId) {
+          await sendOrderNotification(
+            ownerId,
+            'New Order Received! 🛍️',
+            `You have a new order of ₹${newOrder.total_amount} from ${storeName}.`,
+            { orderId: String(newOrder.id), type: 'new_order' }
+          );
+        }
+        
         if (!newOrder.is_pickup) {
           io.to('delivery_partners').emit('new_available_order', newOrder);
           await broadcastNewOrder(newOrder.id, newOrder.store_name || 'a store');

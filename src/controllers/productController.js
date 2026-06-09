@@ -100,6 +100,13 @@ const updateProduct = async (req, res) => {
     if (updateData.isActive !== undefined) mappedData.is_active = updateData.isActive;
     if (updateData.price !== undefined) mappedData.price = updateData.price;
     if (updateData.discountPercent !== undefined) mappedData.discount_percent = updateData.discountPercent;
+    
+    // Support complete product edits
+    if (updateData.name !== undefined) mappedData.name = updateData.name;
+    if (updateData.description !== undefined) mappedData.description = updateData.description;
+    if (updateData.imageUrl !== undefined) mappedData.image_url = updateData.imageUrl;
+    if (updateData.category !== undefined) mappedData.category = updateData.category;
+    if (updateData.isVeg !== undefined) mappedData.is_veg = updateData.isVeg;
 
     const updatedProduct = await productModel.updateProduct(id, mappedData);
     
