@@ -4,7 +4,8 @@ const userModel = require('../models/userModel');
 const storeModel = require('../models/storeModel');
 const orderModel = require('../models/orderModel');
 const db = require('../config/db');
-const { sendOrderNotification } = require('../utils/notification');
+const { sendOrderNotification, broadcastNewOrder } = require('../utils/notification');
+const socketUtils = require('../utils/socket');
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -98,7 +99,7 @@ const onboardPartner = async (req, res) => {
 };
 
 /**
- * Create a Razorpay Order with Transfers (Splits)
+ * Create a Razorpay Order with split logic
  */
 const createOrderWithSplit = async (req, res) => {
   const { orderId } = req.body;
@@ -107,32 +108,14 @@ const createOrderWithSplit = async (req, res) => {
     const order = await orderModel.getOrderById(orderId);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const store = await storeModel.getStoreById(order.store_id);
-    
     const options = {
       amount: Math.round(order.total_amount * 100), // in paise
       currency: "INR",
       receipt: `receipt_${order.id}`
     };
 
-    // Only apply transfers split if Razorpay is enabled and we have a valid account ID
-    if (process.env.ENABLE_RAZORPAY === 'true' && store && store.razorpay_account_id && !store.razorpay_account_id.startsWith('mock_')) {
-      const platformCommission = 0.10; // 10% example
-      const storeShare = order.subtotal * (1 - platformCommission);
-      options.transfers = [
-        {
-          account: store.razorpay_account_id,
-          amount: Math.round(storeShare * 100),
-          currency: "INR",
-          notes: { order_id: order.id },
-          on_hold: false
-        }
-      ];
-    }
-
     const rzpOrder = await razorpay.orders.create(options);
 
-    // Update order with Razorpay Order ID
     await orderModel.updateOrderStatus(order.id, { 
       razorpay_order_id: rzpOrder.id,
       payment_mode: 'online'
@@ -153,10 +136,42 @@ const createOrderWithSplit = async (req, res) => {
 };
 
 /**
- * Verify Razorpay Payment Signature
+ * Create a Razorpay Checkout Session (without creating database order first)
+ */
+const createCheckoutSession = async (req, res) => {
+  const { total_amount } = req.body;
+
+  try {
+    if (!total_amount) {
+      return res.status(400).json({ success: false, error: 'total_amount is required' });
+    }
+
+    const options = {
+      amount: Math.round(total_amount * 100), // in paise
+      currency: "INR",
+      receipt: `receipt_sess_${Date.now()}`
+    };
+
+    const rzpOrder = await razorpay.orders.create(options);
+
+    res.json({
+      success: true,
+      key: process.env.RAZORPAY_KEY_ID,
+      amount: rzpOrder.amount,
+      currency: rzpOrder.currency,
+      order_id: rzpOrder.id,
+    });
+  } catch (error) {
+    console.error('Create Checkout Session Error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to create payment session' });
+  }
+};
+
+/**
+ * Verify Razorpay Payment Signature and Create Database Order
  */
 const verifyPayment = async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, order_id } = req.body;
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderData } = req.body;
 
   const body = razorpay_order_id + "|" + razorpay_payment_id;
   const expectedSignature = crypto
@@ -165,13 +180,55 @@ const verifyPayment = async (req, res) => {
     .digest("hex");
 
   if (expectedSignature === razorpay_signature) {
-    await orderModel.updateOrderStatus(order_id, {
-      razorpay_payment_id,
-      razorpay_signature,
-      payment_status: 'paid',
-      delivery_status: 'placed' // Move from 'pending' or 'draft' to 'placed'
-    });
-    res.json({ success: true, message: 'Payment verified successfully' });
+    try {
+      if (!orderData) {
+        return res.status(400).json({ success: false, message: 'orderData is required for verification' });
+      }
+
+      // 1. Create order in database with explicit online payment mode
+      const finalOrderData = {
+        ...orderData,
+        user_id: req.user.id,
+        payment_mode: 'online'
+      };
+      
+      const newOrder = await orderModel.createOrder(finalOrderData);
+
+      if (!newOrder) {
+        return res.status(500).json({ success: false, message: 'Failed to create database order' });
+      }
+
+      // 2. Update order with payment details
+      const updatedOrder = await orderModel.updateOrderStatus(newOrder.id, {
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature,
+        payment_status: 'paid',
+        delivery_status: 'placed'
+      });
+
+      if (!updatedOrder) {
+        return res.status(500).json({ success: false, message: 'Failed to update payment status' });
+      }
+
+      // 3. Emit sockets and trigger push notifications
+      try {
+        const io = socketUtils.getIO();
+        io.to('admin').emit('new_order', updatedOrder);
+        
+        if (!updatedOrder.is_pickup) {
+          io.to('delivery_partners').emit('new_available_order', updatedOrder);
+          await broadcastNewOrder(updatedOrder.id, updatedOrder.store_name || 'a store');
+        }
+      } catch (err) {
+        console.warn('Update triggers failed during verification:', err.message);
+      }
+
+      res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
+    } catch (createErr) {
+      console.error('Error creating order post-payment:', createErr);
+      res.status(500).json({ success: false, message: createErr.message || 'Error completing order' });
+    }
   } else {
     res.status(400).json({ success: false, message: 'Invalid signature' });
   }
@@ -309,6 +366,7 @@ const payDeliveryBoy = async (partnerId, amount, orderId) => {
 module.exports = {
   onboardPartner,
   createOrderWithSplit,
+  createCheckoutSession,
   verifyPayment,
   handleWebhook,
   payDeliveryBoy

@@ -122,8 +122,8 @@ const createOrder = async (req, res) => {
     const newOrder = await orderModel.createOrder(orderData);
     console.log('📦 [OrderPlacement] Order created with dynamic fee:', finalDeliveryFee);
 
-    // Emit real-time updates and send push notifications
-    if (newOrder) {
+    // Emit real-time updates and send push notifications only for COD orders
+    if (newOrder && newOrder.payment_mode === 'cod') {
       try {
         const io = socketUtils.getIO();
         io.to('admin').emit('new_order', newOrder);
