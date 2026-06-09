@@ -152,14 +152,18 @@ const createCheckoutSession = async (req, res) => {
       receipt: `receipt_sess_${Date.now()}`
     };
 
-    const rzpOrder = await razorpay.orders.create(options);
+    const order = await razorpay.orders.create(options);
+
+    console.log("RAZORPAY_KEY_ID", process.env.RAZORPAY_KEY_ID);
+    console.log("ORDER_CREATE_OPTIONS", options);
+    console.log("CREATED_ORDER", order);
 
     res.json({
       success: true,
       key: process.env.RAZORPAY_KEY_ID,
-      amount: rzpOrder.amount,
-      currency: rzpOrder.currency,
-      order_id: rzpOrder.id,
+      amount: order.amount,
+      currency: order.currency,
+      order_id: order.id,
     });
   } catch (error) {
     console.error('Create Checkout Session Error:', error);
