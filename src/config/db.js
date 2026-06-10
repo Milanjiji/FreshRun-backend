@@ -31,6 +31,10 @@ pool.connect(async (err, client, release) => {
       await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_qr_image TEXT;");
       await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_commission NUMERIC(5,2) DEFAULT 10.00;");
       
+      // Auto-migration for products columns (quantity units and inline variants)
+      await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50);");
+      await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS variants JSONB DEFAULT '[]';");
+      
       // Auto-migration for orders columns
       await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_mode VARCHAR(20) DEFAULT 'cod';");
       await client.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'pending';");

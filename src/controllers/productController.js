@@ -18,11 +18,13 @@ const createProduct = async (req, res) => {
       isStockOut,
       category,
       storeId,
-      isVeg
+      isVeg,
+      unit,
+      variants
     } = req.body;
 
     // Basic validation
-    if (!name || !price || !category || !storeId) {
+    if (!name || !category || !storeId) {
       return res.status(400).json({
         success: false,
         error: 'Missing required fields'
@@ -32,18 +34,23 @@ const createProduct = async (req, res) => {
     // Generate unique ID for product (hash of name and store_id)
     const productId = generateHash(`${name}_${storeId}`);
 
+    const hasVariants = Array.isArray(variants) && variants.length > 0;
+    const firstVariant = hasVariants ? variants[0] : null;
+
     const productData = {
       id: productId,
       store_id: storeId,
       name,
       description,
       image_url: imageUrl,
-      price,
-      discount_percent: discountPercent || 0,
-      stock_quantity: stockQuantity || 0,
-      is_stock_out: isStockOut || false,
+      price: firstVariant ? firstVariant.price : (price || 0),
+      discount_percent: firstVariant ? (firstVariant.discount_percent || 0) : (discountPercent || 0),
+      stock_quantity: firstVariant ? (firstVariant.stock_quantity || 0) : (stockQuantity || 0),
+      is_stock_out: firstVariant ? (firstVariant.is_stock_out || false) : (isStockOut || false),
       category,
-      is_veg: isVeg !== undefined ? isVeg : true
+      is_veg: isVeg !== undefined ? isVeg : true,
+      unit: firstVariant ? firstVariant.unit : (unit || null),
+      variants: variants || []
     };
 
     const newProduct = await productModel.createProduct(productData);
@@ -107,6 +114,22 @@ const updateProduct = async (req, res) => {
     if (updateData.imageUrl !== undefined) mappedData.image_url = updateData.imageUrl;
     if (updateData.category !== undefined) mappedData.category = updateData.category;
     if (updateData.isVeg !== undefined) mappedData.is_veg = updateData.isVeg;
+    if (updateData.unit !== undefined) mappedData.unit = updateData.unit;
+    
+    if (updateData.variants !== undefined) {
+      const hasVariants = Array.isArray(updateData.variants) && updateData.variants.length > 0;
+      mappedData.variants = hasVariants ? JSON.stringify(updateData.variants) : JSON.stringify([]);
+      
+      // If variants are enabled, sync the main fields to the first variant
+      if (hasVariants) {
+        const firstVar = updateData.variants[0];
+        mappedData.price = firstVar.price;
+        mappedData.discount_percent = firstVar.discount_percent || 0;
+        mappedData.stock_quantity = firstVar.stock_quantity || 0;
+        mappedData.is_stock_out = firstVar.is_stock_out || false;
+        mappedData.unit = firstVar.unit;
+      }
+    }
 
     const updatedProduct = await productModel.updateProduct(id, mappedData);
     

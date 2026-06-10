@@ -35,16 +35,32 @@ const createProduct = async (productData) => {
     stock_quantity,
     is_stock_out,
     category,
-    is_veg
+    is_veg,
+    unit,
+    variants
   } = productData;
 
   const result = await db.query(
     `INSERT INTO products (
       id, store_id, name, description, image_url, price, 
-      discount_percent, stock_quantity, is_stock_out, category, is_veg
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      discount_percent, stock_quantity, is_stock_out, category, is_veg, unit, variants
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
     RETURNING *`,
-    [id, store_id, name, description, image_url, price, discount_percent, stock_quantity, is_stock_out, category, is_veg]
+    [
+      id, 
+      store_id, 
+      name, 
+      description, 
+      image_url, 
+      price, 
+      discount_percent, 
+      stock_quantity, 
+      is_stock_out, 
+      category, 
+      is_veg, 
+      unit || null, 
+      variants ? JSON.stringify(variants) : JSON.stringify([])
+    ]
   );
 
   // Update store cache
