@@ -69,7 +69,37 @@ const getOrderDetailsById = async (id) => {
      WHERE o.id = $1`,
     [id]
   );
-  return result.rows[0];
+  const order = result.rows[0];
+  if (order) {
+    let itemsArray = order.items;
+    if (typeof itemsArray === 'string') {
+      try {
+        itemsArray = JSON.parse(itemsArray);
+      } catch (e) {
+        itemsArray = [];
+      }
+    }
+    if (Array.isArray(itemsArray)) {
+      const storeIds = [...new Set(itemsArray.map(item => String(item.store_id || item.storeId)).filter(id => id && id !== 'undefined' && id !== 'null'))];
+      if (storeIds.length > 0) {
+        try {
+          const storesRes = await db.query(
+            'SELECT id, name, latitude, longitude, address_line FROM stores WHERE id = ANY($1)',
+            [storeIds]
+          );
+          order.stores = storesRes.rows;
+        } catch (dbErr) {
+          console.error('Error fetching stores for order details:', dbErr.message);
+          order.stores = [];
+        }
+      } else {
+        order.stores = [];
+      }
+    } else {
+      order.stores = [];
+    }
+  }
+  return order;
 };
 
 const orderModel = {
@@ -83,6 +113,7 @@ const orderModel = {
       delivery_fee,
       rainy_surge_fee,
       late_night_fee,
+      extra_store_charge,
       delivery_tip,
       total_amount,
       delivery_address,
@@ -141,9 +172,9 @@ const orderModel = {
     const query = `
       INSERT INTO orders (
         user_id, store_id, items, subtotal, handling_fee, delivery_fee, 
-        rainy_surge_fee, late_night_fee, delivery_tip, total_amount, delivery_address, address_id, is_pickup, payment_mode, delivery_pin
+        rainy_surge_fee, late_night_fee, extra_store_charge, picked_up_stores, delivery_tip, total_amount, delivery_address, address_id, is_pickup, payment_mode, delivery_pin
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *;
     `;
 
@@ -156,6 +187,8 @@ const orderModel = {
       delivery_fee,
       rainy_surge_fee || 0,
       late_night_fee || 0,
+      extra_store_charge || 0,
+      JSON.stringify([]),
       delivery_tip,
       total_amount,
       JSON.stringify(resolvedDeliveryAddress),

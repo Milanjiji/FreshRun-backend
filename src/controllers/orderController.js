@@ -18,6 +18,7 @@ const createOrder = async (req, res) => {
       delivery_fee,
       rainy_surge_fee,
       late_night_fee,
+      extra_store_charge,
       delivery_tip,
       total_amount,
       delivery_address,
@@ -111,6 +112,7 @@ const createOrder = async (req, res) => {
       delivery_fee: delivery_fee || 0,
       rainy_surge_fee: rainy_surge_fee || 0,
       late_night_fee: late_night_fee || 0,
+      extra_store_charge: extra_store_charge || 0,
       delivery_tip: delivery_tip || 0,
       total_amount: total_amount || 0,
       delivery_address: delivery_address || {},
@@ -304,11 +306,12 @@ const updateOrderStatus = async (req, res) => {
         const fee = parseFloat(updatedOrder.delivery_fee) || 0;
         const rainySurge = parseFloat(updatedOrder.rainy_surge_fee) || 0;
         const lateNight = parseFloat(updatedOrder.late_night_fee) || 0;
+        const extraStore = parseFloat(updatedOrder.extra_store_charge) || 0;
         const tip = parseFloat(updatedOrder.delivery_tip) || 0;
-        const earningsToAdd = fee + rainySurge + lateNight + tip;
+        const earningsToAdd = fee + rainySurge + lateNight + extraStore + tip;
 
         if (earningsToAdd > 0) {
-          console.log(`[Earnings] Crediting partner ${partnerId} with ₹${earningsToAdd} (fee: ₹${fee}, rainy: ₹${rainySurge}, lateNight: ₹${lateNight}, tip: ₹${tip}) for order #${id}`);
+          console.log(`[Earnings] Crediting partner ${partnerId} with ₹${earningsToAdd} (fee: ₹${fee}, rainy: ₹${rainySurge}, lateNight: ₹${lateNight}, extraStore: ₹${extraStore}, tip: ₹${tip}) for order #${id}`);
           try {
             await db.query(
               `UPDATE users 
@@ -472,6 +475,48 @@ const getUserOrders = async (req, res) => {
   }
 };
 
+const pickupStore = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { store_id } = req.body;
+
+    const existingOrder = await orderModel.getOrderById(id);
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+
+    let pickedUpStores = existingOrder.picked_up_stores || [];
+    if (typeof pickedUpStores === 'string') {
+      try {
+        pickedUpStores = JSON.parse(pickedUpStores);
+      } catch (e) {
+        pickedUpStores = [];
+      }
+    }
+    if (!pickedUpStores.includes(store_id)) {
+      pickedUpStores.push(store_id);
+    }
+
+    const updatedOrder = await orderModel.updateOrderStatus(id, {
+      picked_up_stores: JSON.stringify(pickedUpStores)
+    });
+
+    // Emit real-time update
+    try {
+      const io = socketUtils.getIO();
+      io.to(`order_${id}`).emit('order_status_changed', updatedOrder);
+      io.to('admin').emit('order_status_changed', updatedOrder);
+    } catch (socketErr) {
+      console.warn('Socket emit failed:', socketErr.message);
+    }
+
+    res.status(200).json({ success: true, order: updatedOrder });
+  } catch (error) {
+    console.error('Error in pickupStore:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createOrder,
   getAllOrders,
@@ -481,5 +526,6 @@ module.exports = {
   getActiveOrder,
   getOrderById,
   updateOrderStatus,
-  getUserOrders
+  getUserOrders,
+  pickupStore
 };

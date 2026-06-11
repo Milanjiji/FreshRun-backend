@@ -17,6 +17,7 @@ const createProduct = async (req, res) => {
       stockQuantity,
       isStockOut,
       category,
+      subcategory,
       storeId,
       isVeg,
       unit,
@@ -24,10 +25,10 @@ const createProduct = async (req, res) => {
     } = req.body;
 
     // Basic validation
-    if (!name || !category || !storeId) {
+    if (!name || !storeId) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields'
+        error: 'Missing required fields: name and storeId'
       });
     }
 
@@ -47,7 +48,8 @@ const createProduct = async (req, res) => {
       discount_percent: firstVariant ? (firstVariant.discount_percent || 0) : (discountPercent || 0),
       stock_quantity: firstVariant ? (firstVariant.stock_quantity || 0) : (stockQuantity || 0),
       is_stock_out: firstVariant ? (firstVariant.is_stock_out || false) : (isStockOut || false),
-      category,
+      category: category || null,
+      subcategory: subcategory || null,
       is_veg: isVeg !== undefined ? isVeg : true,
       unit: firstVariant ? firstVariant.unit : (unit || null),
       variants: variants || []
@@ -76,8 +78,8 @@ const createProduct = async (req, res) => {
  */
 const getProducts = async (req, res) => {
   try {
-    const { category, store_id, is_veg, include_inactive } = req.query;
-    const products = await productModel.getAllProducts({ category, store_id, is_veg, include_inactive });
+    const { category, subcategory, store_id, is_veg, include_inactive } = req.query;
+    const products = await productModel.getAllProducts({ category, subcategory, store_id, is_veg, include_inactive });
     res.status(200).json({
       success: true,
       data: products
@@ -112,7 +114,8 @@ const updateProduct = async (req, res) => {
     if (updateData.name !== undefined) mappedData.name = updateData.name;
     if (updateData.description !== undefined) mappedData.description = updateData.description;
     if (updateData.imageUrl !== undefined) mappedData.image_url = updateData.imageUrl;
-    if (updateData.category !== undefined) mappedData.category = updateData.category;
+    if (updateData.category !== undefined) mappedData.category = updateData.category || null;
+    if (updateData.subcategory !== undefined) mappedData.subcategory = updateData.subcategory || null;
     if (updateData.isVeg !== undefined) mappedData.is_veg = updateData.isVeg;
     if (updateData.unit !== undefined) mappedData.unit = updateData.unit;
     

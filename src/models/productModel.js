@@ -35,6 +35,7 @@ const createProduct = async (productData) => {
     stock_quantity,
     is_stock_out,
     category,
+    subcategory,
     is_veg,
     unit,
     variants
@@ -43,8 +44,8 @@ const createProduct = async (productData) => {
   const result = await db.query(
     `INSERT INTO products (
       id, store_id, name, description, image_url, price, 
-      discount_percent, stock_quantity, is_stock_out, category, is_veg, unit, variants
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+      discount_percent, stock_quantity, is_stock_out, category, subcategory, is_veg, unit, variants
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
     RETURNING *`,
     [
       id, 
@@ -56,7 +57,8 @@ const createProduct = async (productData) => {
       discount_percent, 
       stock_quantity, 
       is_stock_out, 
-      category, 
+      category || null, 
+      subcategory || null,
       is_veg, 
       unit || null, 
       variants ? JSON.stringify(variants) : JSON.stringify([])
@@ -88,6 +90,11 @@ const getAllProducts = async (filters = {}) => {
   if (filters.category) {
     params.push(filters.category);
     query += ` AND p.category = $${params.length}`;
+  }
+
+  if (filters.subcategory) {
+    params.push(filters.subcategory);
+    query += ` AND p.subcategory = $${params.length}`;
   }
 
   if (filters.store_id) {
