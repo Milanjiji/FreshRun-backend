@@ -25,6 +25,6 @@ router.get('/:id', authMiddleware, getOrderById);
 router.post('/:id/opt-in', authMiddleware, deliveryActiveMiddleware, optInToOrder);
 router.post('/:id/pickup-store', authMiddleware, deliveryActiveMiddleware, pickupStore);
 router.get('/', getAllOrders); // In production, add authMiddleware and restrict to admin or user's own orders
-router.patch('/:id', updateOrderStatus);
+router.patch('/:id', authMiddleware, updateOrderStatus);
 
 module.exports = router;

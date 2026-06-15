@@ -271,20 +271,36 @@ const updateOrderStatus = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
 
-    // Verify Delivery PIN if transitioning to delivered status via delivery partner app
-    if ((updates.status === 'delivered' || updates.is_completed === true) && req.headers['authorization']) {
-      const { delivery_pin } = updates;
-      if (!delivery_pin) {
-        return res.status(400).json({ success: false, error: 'Delivery PIN verification is required.' });
+    // Verify permissions for transitioning to delivered/completed status
+    if (updates.status === 'delivered' || updates.is_completed === true) {
+      // Check role authorization: Only assigned delivery partner or admin can complete
+      if (req.user.role !== 'admin' && (req.user.role !== 'delivery' || req.user.id !== existingOrder.delivery_partner_id)) {
+        return res.status(403).json({ success: false, error: 'Only the assigned delivery partner or an admin can mark this order as delivered.' });
       }
-      if (String(delivery_pin) !== String(existingOrder.delivery_pin)) {
-        return res.status(400).json({ success: false, error: 'Invalid delivery verification PIN. Please try again.' });
+
+      // Verify Delivery PIN (Admins bypass PIN check)
+      if (req.user.role !== 'admin') {
+        const { delivery_pin } = updates;
+        if (!delivery_pin) {
+          return res.status(400).json({ success: false, error: 'Delivery PIN verification is required.' });
+        }
+        if (String(delivery_pin) !== String(existingOrder.delivery_pin)) {
+          return res.status(400).json({ success: false, error: 'Invalid delivery verification PIN. Please try again.' });
+        }
       }
+      
       // Strip delivery_pin from updates before updating the DB row
       delete updates.delivery_pin;
     } else {
       // Strip delivery_pin from updates if sent by accident on other status updates
       delete updates.delivery_pin;
+    }
+
+    // Guard: Only the customer who placed the order can dismiss a declined order (by marking it cancelled)
+    if (updates.status === 'cancelled' && existingOrder.status === 'declined') {
+      if (req.user.id !== existingOrder.user_id) {
+        return res.status(403).json({ success: false, error: 'Only the customer who placed this order can dismiss it.' });
+      }
     }
 
     const updatedOrder = await orderModel.updateOrderStatus(id, updates);
