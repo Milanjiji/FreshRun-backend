@@ -3,6 +3,7 @@ const cors = require('cors');
 const http = require('http');
 require('dotenv').config();
 
+const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const storeRoutes = require('./routes/storeRoutes');
@@ -23,7 +24,34 @@ socketUtils.init(server);
 
 const PORT = process.env.PORT || 5000;
 
+// Rate Limiters
+// 1. General Limiter: 200 requests per 15 minutes (excludes health checks and root)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, 
+  message: {
+    success: false,
+    error: 'Too many requests from this IP. Please try again after 15 minutes.'
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skip: (req) => req.path === '/health' || req.path === '/',
+});
+
+// 2. Auth Limiter: 10 requests per 10 minutes
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 10,
+  message: {
+    success: false,
+    error: 'Too many login/OTP requests. Please try again after 10 minutes.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Middleware
+app.use(generalLimiter);
 app.use(cors());
 app.use(express.json());
 
@@ -32,7 +60,7 @@ app.get("/", (req, res) => {
   res.send("FreshRun Backend Running ✅");
 });
 
-app.use('/auth', authRoutes);
+app.use('/auth', authLimiter, authRoutes);
 app.use('/user', userRoutes);
 app.use('/stores', storeRoutes);
 app.use('/products', productRoutes);
