@@ -255,12 +255,26 @@ const orderModel = {
   getActiveOrderByUserId: async (user_id) => {
     const query = `
       ${orderDetailsSelect}
-      WHERE o.user_id = $1 AND o.is_completed = false 
+      WHERE o.user_id = $1 
+        AND o.is_completed = false 
+        AND o.status NOT IN ('delivered', 'cancelled')
       ORDER BY o.created_at DESC 
       LIMIT 1;
     `;
     const result = await db.query(query, [user_id]);
     return result.rows[0];
+  },
+
+  getActiveOrdersByUserId: async (user_id) => {
+    const query = `
+      ${orderDetailsSelect}
+      WHERE o.user_id = $1 
+        AND o.is_completed = false 
+        AND o.status NOT IN ('delivered', 'cancelled')
+      ORDER BY o.created_at DESC;
+    `;
+    const result = await db.query(query, [user_id]);
+    return result.rows;
   },
 
   getOrdersByUserId: async (user_id) => {

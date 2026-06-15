@@ -5,7 +5,8 @@ const {
   getAvailableOrders,
   getPartnerOrders,
   optInToOrder,
-  getActiveOrder, 
+  getActiveOrder,
+  getActiveOrders,
   getUserOrders,
   getOrderById,
   updateOrderStatus,
@@ -18,6 +19,7 @@ const router = express.Router();
 
 router.post('/', authMiddleware, createOrder);
 router.get('/active', authMiddleware, getActiveOrder);
+router.get('/active-all', authMiddleware, getActiveOrders);
 router.get('/available', authMiddleware, deliveryActiveMiddleware, getAvailableOrders);
 router.get('/partner', authMiddleware, deliveryActiveMiddleware, getPartnerOrders);
 router.get('/user', authMiddleware, getUserOrders);
