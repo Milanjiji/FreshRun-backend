@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const socketUtils = require('../utils/socket');
 
 // Request a new withdrawal (Delivery Partner)
 const requestWithdrawal = async (req, res) => {
@@ -171,6 +172,20 @@ const approveWithdrawal = async (req, res) => {
     );
 
     await client.query('COMMIT');
+
+    // Notify user in real-time via WebSocket
+    try {
+      const io = socketUtils.getIO();
+      io.to(`user_${request.user_id}`).emit('payout_status_updated', {
+        requestId: id,
+        amount: requestAmount,
+        status: 'approved',
+        message: `Withdrawal request of ₹${requestAmount.toFixed(2)} approved successfully!`
+      });
+    } catch (socketErr) {
+      console.warn('[Payout] Real-time socket notification failed:', socketErr.message);
+    }
+
     res.status(200).json({ success: true, message: 'Withdrawal request approved and processed successfully.' });
 
   } catch (error) {
@@ -202,10 +217,26 @@ const rejectWithdrawal = async (req, res) => {
       return res.status(400).json({ success: false, error: 'Only pending requests can be rejected' });
     }
 
+    const finalReason = rejectionReason || 'Details provided were incorrect';
     await db.query(
       "UPDATE withdrawal_requests SET status = 'rejected', rejection_reason = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [rejectionReason || 'Details provided were incorrect', id]
+      [finalReason, id]
     );
+
+    // Notify user in real-time via WebSocket
+    try {
+      const io = socketUtils.getIO();
+      const amountVal = parseFloat(request.amount);
+      io.to(`user_${request.user_id}`).emit('payout_status_updated', {
+        requestId: id,
+        amount: amountVal,
+        status: 'rejected',
+        rejectionReason: finalReason,
+        message: `Withdrawal request of ₹${amountVal.toFixed(2)} was rejected. Reason: ${finalReason}`
+      });
+    } catch (socketErr) {
+      console.warn('[Payout] Real-time socket notification failed:', socketErr.message);
+    }
 
     res.status(200).json({ success: true, message: 'Withdrawal request rejected successfully.' });
 
