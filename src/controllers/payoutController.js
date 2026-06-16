@@ -89,6 +89,7 @@ const getAllRequests = async (req, res) => {
               u.bank_account_number, 
               u.bank_ifsc, 
               u.upi_id,
+              u.role,
               u.total_earnings, 
               u.withdrawable_earnings
        FROM withdrawal_requests wr
