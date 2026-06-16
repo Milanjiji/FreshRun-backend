@@ -14,6 +14,7 @@ const driverRoutes = require('./routes/driverRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const ticketRoutes = require('./routes/ticketRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const payoutRoutes = require('./routes/payoutRoutes');
 const db = require('./config/db');
 const socketUtils = require('./utils/socket');
 
@@ -86,6 +87,7 @@ app.use('/drivers', driverRoutes);
 app.use('/payments', paymentRoutes);
 app.use('/support', ticketRoutes);
 app.use('/categories', categoryRoutes);
+app.use('/payouts', payoutRoutes);
 
 
 // Health check

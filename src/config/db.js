@@ -56,7 +56,19 @@ pool.connect(async (err, client, release) => {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount, upi, platform_commission, orders columns, earnings_transactions columns)');
+
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS withdrawal_requests (
+          id SERIAL PRIMARY KEY,
+          user_id VARCHAR(100) REFERENCES users(id) ON DELETE CASCADE,
+          amount NUMERIC(10,2) NOT NULL,
+          status VARCHAR(20) DEFAULT 'pending',
+          rejection_reason TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount, upi, platform_commission, orders columns, earnings_transactions, withdrawal_requests)');
     } catch (migErr) {
       console.error('⚠️ Auto-migration failed (non-critical):', migErr.message);
     } finally {
