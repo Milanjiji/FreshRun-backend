@@ -55,9 +55,20 @@ const authLimiter = rateLimit({
 // Middleware
 app.use(generalLimiter);
 
-const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+const defaultAllowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://fresh-run-admin.vercel.app',
+  'http://fresh-run-admin.vercel.app',
+  'https://freshrun.in',
+  'http://freshrun.in'
+];
+
+const envOrigins = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : [];
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envOrigins]));
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -67,7 +78,8 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Reject origin cleanly without throwing an Express error that causes a 500 status code response
+      callback(null, false);
     }
   }
 }));

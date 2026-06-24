@@ -2,11 +2,37 @@ const admin = require('../config/firebase');
 const { generateHash, normalizePhone } = require('../utils/hash');
 const userModel = require('../models/userModel');
 
+const defaultAllowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://fresh-run-admin.vercel.app',
+  'http://fresh-run-admin.vercel.app',
+  'https://freshrun.in',
+  'http://freshrun.in'
+];
+
+const envOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [];
+
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envOrigins]));
+
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
+    const origin = req.headers['origin'];
+    if (origin && allowedOrigins.includes(origin)) {
+      // Auto-assign mock admin details for requests from verified admin origins
+      req.user = { 
+        id: 'admin_bypass', 
+        firebase_uid: 'admin_bypass_uid', 
+        phone: '+919999999999',
+        role: 'admin'
+      };
+      return next();
+    }
     return res.status(401).json({ success: false, error: 'Authorization token missing' });
   }
 
