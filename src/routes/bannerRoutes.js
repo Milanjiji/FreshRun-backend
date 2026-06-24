@@ -8,7 +8,9 @@ router.get('/', bannerController.getBanners);
 // Admin routes (Removing missing auth middleware for now to match other routes)
 router.get('/admin', bannerController.getAllBannersAdmin);
 router.post('/', bannerController.createBanner);
+router.post('/delete-image', bannerController.deleteImage);
 router.put('/:id', bannerController.updateBanner);
 router.delete('/:id', bannerController.deleteBanner);
+
 
 module.exports = router;

@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { deleteImage } = require('../utils/cloudinary');
 
 exports.getBanners = async (req, res) => {
   try {
@@ -84,16 +85,44 @@ exports.updateBanner = async (req, res) => {
 exports.deleteBanner = async (req, res) => {
   try {
     const { id } = req.params;
-    const query = 'DELETE FROM banners WHERE id = $1 RETURNING id;';
-    const result = await db.query(query, [id]);
-
-    if (result.rows.length === 0) {
+    
+    // Fetch the banner first to get the image_url
+    const selectQuery = 'SELECT image_url FROM banners WHERE id = $1;';
+    const selectResult = await db.query(selectQuery, [id]);
+    
+    if (selectResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Banner not found' });
     }
+    
+    const imageUrl = selectResult.rows[0].image_url;
+    
+    // Delete image from Cloudinary
+    if (imageUrl) {
+      await deleteImage(imageUrl);
+    }
+    
+    // Delete from database
+    const deleteQuery = 'DELETE FROM banners WHERE id = $1 RETURNING id;';
+    const deleteResult = await db.query(deleteQuery, [id]);
 
-    res.json({ success: true, data: { id: result.rows[0].id } });
+    res.json({ success: true, data: { id: deleteResult.rows[0].id } });
   } catch (error) {
     console.error('Error deleting banner:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+
+exports.deleteImage = async (req, res) => {
+  try {
+    const { imageUrl } = req.body;
+    if (!imageUrl) {
+      return res.status(400).json({ success: false, error: 'imageUrl is required' });
+    }
+    const success = await deleteImage(imageUrl);
+    res.json({ success });
+  } catch (error) {
+    console.error('Error deleting image:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+

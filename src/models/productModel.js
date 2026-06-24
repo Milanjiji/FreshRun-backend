@@ -76,7 +76,7 @@ const createProduct = async (productData) => {
  */
 const getAllProducts = async (filters = {}) => {
   let query = `
-    SELECT p.*, s.name as store_name 
+    SELECT p.*, s.name as store_name, s.handling_fee as store_handling_fee
     FROM products p 
     JOIN stores s ON p.store_id = s.id 
     WHERE 1=1
