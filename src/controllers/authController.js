@@ -59,6 +59,25 @@ const login = async (req, res) => {
     if (!user) {
       console.log('Debug: User not found in DB. Creating new user...');
       user = await userModel.createUser(userId, firebase_uid, normalizedPhone, role);
+    } else if (!user.is_active) {
+      // User row exists but was previously deleted/anonymized.
+      // Re-activate it as a fresh account — same phone re-registered.
+      console.log('Debug: Found deleted user row. Re-activating as fresh account...');
+      const isPendingRole = ['delivery', 'owner'].includes(role);
+      await db.query(
+        `UPDATE users SET 
+          phone = $1, firebase_uid = $2, role = $3,
+          is_active = true, approval_status = $4,
+          is_profile_complete = false,
+          full_name = NULL, email = NULL,
+          house_number = NULL, address_line = NULL,
+          landmark = NULL, pincode = NULL, city = NULL,
+          delivery_message = NULL, current_address_id = NULL,
+          fcm_token = NULL, aadhar_number = NULL, aadhar_image = NULL
+        WHERE id = $5`,
+        [normalizedPhone, firebase_uid, role, isPendingRole ? 'pending' : 'approved', userId]
+      );
+      user = await userModel.findById(userId);
     }
 
     // 4. Calculate today's earnings if delivery partner

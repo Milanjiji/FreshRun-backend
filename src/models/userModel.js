@@ -195,8 +195,11 @@ const anonymizeUser = async (id) => {
          house_number = NULL,
          address_line = NULL,
          landmark = NULL,
+         pincode = NULL,
+         city = NULL,
          delivery_message = NULL,
          current_address_id = NULL,
+         is_profile_complete = false,
          is_active = false 
      WHERE id = $1 RETURNING *`,
     [id]

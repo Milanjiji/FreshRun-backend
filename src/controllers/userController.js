@@ -341,9 +341,16 @@ const deleteAccount = async (req, res) => {
       console.log(`Stores deactivated for owner ${userId}.`);
     }
 
-    // 3. Anonymize user in database
+    // 3. Anonymize user — clears current_address_id FK first so addresses can be deleted
     await userModel.anonymizeUser(userId);
     console.log(`User ${userId} anonymized in database.`);
+
+    // 4. Hard-delete all saved addresses for this user.
+    // Must happen AFTER anonymizeUser clears the current_address_id FK reference.
+    // Without this, re-registering with the same phone number reuses the same userId
+    // and the old addresses appear in AddressSelectionScreen.
+    await db.query('DELETE FROM addresses WHERE user_id = $1', [userId]);
+    console.log(`All addresses deleted for user ${userId}.`);
 
     res.status(200).json({ success: true, message: 'Account deleted successfully.' });
 
