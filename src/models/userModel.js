@@ -187,8 +187,8 @@ const anonymizeUser = async (id) => {
     `UPDATE users 
      SET full_name = 'Deleted User', 
          email = NULL, 
-         phone = 'DELETED_' || id, 
-         firebase_uid = 'DELETED_' || id,
+         phone = LEFT('DEL_' || id::text, 15), 
+         firebase_uid = 'DELETED_' || id::text,
          aadhar_number = NULL, 
          aadhar_image = NULL, 
          fcm_token = NULL,
