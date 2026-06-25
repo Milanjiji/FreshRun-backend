@@ -26,6 +26,11 @@ socketUtils.init(server);
 
 const PORT = process.env.PORT || 5000;
 
+// Trust the first proxy in the chain (required on Render / any reverse-proxy host).
+// Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+// and rejects every request before it reaches auth middleware.
+app.set('trust proxy', 1);
+
 // Rate Limiters
 // 1. General Limiter: 200 requests per 15 minutes (excludes health checks and root)
 const generalLimiter = rateLimit({
