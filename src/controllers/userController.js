@@ -345,12 +345,12 @@ const deleteAccount = async (req, res) => {
     await userModel.anonymizeUser(userId);
     console.log(`User ${userId} anonymized in database.`);
 
-    // 4. Hard-delete all saved addresses for this user.
-    // Must happen AFTER anonymizeUser clears the current_address_id FK reference.
-    // Without this, re-registering with the same phone number reuses the same userId
-    // and the old addresses appear in AddressSelectionScreen.
-    await db.query('DELETE FROM addresses WHERE user_id = $1', [userId]);
-    console.log(`All addresses deleted for user ${userId}.`);
+    // 4. Soft-delete all saved addresses for this user by setting is_active = false.
+    // This avoids breaking foreign key constraints on the 'orders' table (e.g. orders_address_id_fkey)
+    // while ensuring that re-registering with the same phone number (reusing same userId)
+    // starts with a fresh empty address list.
+    await db.query('UPDATE addresses SET is_active = false WHERE user_id = $1', [userId]);
+    console.log(`All addresses soft-deleted for user ${userId}.`);
 
     res.status(200).json({ success: true, message: 'Account deleted successfully.' });
 
