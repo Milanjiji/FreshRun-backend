@@ -16,6 +16,7 @@ const ticketRoutes = require('./routes/ticketRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const payoutRoutes = require('./routes/payoutRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
+const searchRoutes = require('./routes/searchRoutes');
 const db = require('./config/db');
 const socketUtils = require('./utils/socket');
 
@@ -107,6 +108,7 @@ app.use('/support', ticketRoutes);
 app.use('/categories', categoryRoutes);
 app.use('/payouts', payoutRoutes);
 app.use('/banners', bannerRoutes);
+app.use('/search', searchRoutes);
 
 
 // Health check
