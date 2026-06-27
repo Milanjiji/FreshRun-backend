@@ -2,6 +2,7 @@ const storeModel = require('../models/storeModel');
 const userModel = require('../models/userModel');
 const { generateHash, normalizePhone } = require('../utils/hash');
 const socketUtils = require('../utils/socket');
+const db = require('../config/db');
 
 /**
  * Create a new store and owner user
@@ -59,6 +60,25 @@ const createStore = async (req, res) => {
       console.log('Creating new owner user...');
       const placeholderFirebaseUid = `OWNER_PENDING_${normalizedOwnerPhone}`;
       owner = await userModel.createUser(ownerId, placeholderFirebaseUid, normalizedOwnerPhone, 'owner');
+    } else if (!owner.is_active) {
+      console.log('Found deleted/inactive owner user row. Re-activating...');
+      const placeholderFirebaseUid = `OWNER_PENDING_${normalizedOwnerPhone}`;
+      await db.query(
+        `UPDATE users SET 
+          phone = $1, firebase_uid = $2, role = 'owner',
+          is_active = true, approval_status = 'pending',
+          is_profile_complete = false,
+          full_name = NULL, email = NULL,
+          house_number = NULL, address_line = NULL,
+          landmark = NULL, pincode = NULL, city = NULL,
+          delivery_message = NULL, current_address_id = NULL,
+          fcm_token = NULL, aadhar_number = NULL, aadhar_image = NULL,
+          bank_account_number = NULL, bank_ifsc = NULL, pan_number = NULL,
+          upi_id = NULL, upi_qr_image = NULL
+        WHERE id = $3`,
+        [normalizedOwnerPhone, placeholderFirebaseUid, ownerId]
+      );
+      owner = await userModel.findById(ownerId);
     }
 
     // Update owner profile with full details (Safely handle missing Aadhar info from web)
@@ -69,7 +89,7 @@ const createStore = async (req, res) => {
       aadharImage: ownerAadharImage || null
     });
 
-    // 5. Create the Store
+    // 5. Create or Update the Store
     const storeData = {
       id: storeId,
       owner_id: ownerId,
@@ -91,16 +111,31 @@ const createStore = async (req, res) => {
       handling_fee: handlingFee ? parseFloat(handlingFee) : 0,
       max_delivery_distance: maxDeliveryDistance ? parseFloat(maxDeliveryDistance) : 5.0,
       gst_number: gstNumber || null,
-      approval_status: approvalStatus || 'pending'
+      approval_status: approvalStatus || 'pending',
+      is_active: true
     };
 
-
-    const newStore = await storeModel.createStore(storeData);
+    let finalStore;
+    const existingStore = await storeModel.getStoreById(storeId);
+    if (existingStore) {
+      // Security Check: If store exists but is owned by a different user ID, block it.
+      if (existingStore.owner_id !== ownerId) {
+        return res.status(400).json({
+          success: false,
+          error: 'A store with this phone number is already registered under a different account.'
+        });
+      }
+      console.log('Store already exists for this owner. Updating details and re-activating...');
+      finalStore = await storeModel.updateStore(storeId, storeData);
+    } else {
+      console.log('Creating new store...');
+      finalStore = await storeModel.createStore(storeData);
+    }
 
     res.status(201).json({
       success: true,
       message: 'Store registration submitted for approval',
-      data: newStore
+      data: finalStore
     });
 
   } catch (error) {
