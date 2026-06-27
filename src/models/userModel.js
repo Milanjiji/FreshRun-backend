@@ -189,6 +189,7 @@ const anonymizeUser = async (id) => {
          email = NULL, 
          phone = LEFT('DEL_' || id::text, 15), 
          firebase_uid = 'DELETED_' || id::text,
+         role = 'deleted',
          aadhar_number = NULL, 
          aadhar_image = NULL, 
          fcm_token = NULL,
