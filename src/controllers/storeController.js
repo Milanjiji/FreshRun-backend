@@ -103,7 +103,7 @@ const createStore = async (req, res) => {
       address_line: storeAddressLine || null,
       landmark: storeLandmark || null,
       pincode: storePincode || null,
-      city: storeCity || 'Calicut',
+      city: storeCity || null,
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
       maps_link: mapsLink || null,
