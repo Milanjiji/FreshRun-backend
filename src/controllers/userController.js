@@ -16,6 +16,14 @@ const updateProfile = async (req, res) => {
       });
     }
 
+    // 0. Guard: confirm the user row exists before doing any writes.
+    //    With Fix 1 in authMiddleware this should never be null, but kept as a safety net.
+    const existingUser = await userModel.findById(userId);
+    if (!existingUser) {
+      console.error(`[updateProfile] User ${userId} passed auth but not found in DB. Race condition or data issue.`);
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
+
     // 1. Create a NEW address entry for this update (Immutability)
     const newAddress = await addressModel.create(userId, {
       fullName, email, houseNumber, addressLine, landmark,
@@ -26,8 +34,7 @@ const updateProfile = async (req, res) => {
     });
 
     // 2. Update the user with the new details and the pointer
-    const currentUser = await userModel.findById(userId);
-    const wasProfileIncomplete = !currentUser?.is_profile_complete;
+    const wasProfileIncomplete = !existingUser.is_profile_complete;
 
     const updatedUserResult = await userModel.updateProfileWithAddress(userId, { 
       fullName, 

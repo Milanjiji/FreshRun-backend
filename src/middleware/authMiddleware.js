@@ -39,24 +39,50 @@ const authenticateToken = async (req, res, next) => {
   try {
     // Verify Firebase ID Token
     const decodedToken = await admin.auth().verifyIdToken(token);
-    
-    // Generate deterministic userId from verified phone number
-    const userId = generateHash(normalizePhone(decodedToken.phone_number));
-    
+
+    // Guard: phone_number must be present (Phone Auth tokens always have it)
+    if (!decodedToken.phone_number) {
+      console.error('[authMiddleware] phone_number missing from decoded Firebase token. UID:', decodedToken.uid);
+      return res.status(400).json({ success: false, error: 'Phone number missing from token. Please re-authenticate.' });
+    }
+
+    const normalizedPhone = normalizePhone(decodedToken.phone_number);
+    const userId = generateHash(normalizedPhone);
+
     // Fetch full user data to get the role
-    const user = await userModel.findById(userId);
-    
+    let user = await userModel.findById(userId);
+
+    // --- Upsert: if the user row doesn't exist yet (race condition on first signup),
+    // create it now using the verified token data. This makes every protected route
+    // idempotent for new customers and eliminates the timing gap between /auth/login
+    // writing the row and the first protected request arriving.
+    if (!user) {
+      console.warn(`[authMiddleware] User ${userId} not found in DB. Auto-creating as customer (upsert on first request).`);
+      try {
+        user = await userModel.createUser(userId, decodedToken.uid, normalizedPhone, 'customer');
+        console.log(`[authMiddleware] User ${userId} created successfully via upsert.`);
+      } catch (createErr) {
+        // If a concurrent request already created the row (duplicate key), just fetch it.
+        if (createErr.code === '23505') {
+          console.warn('[authMiddleware] Duplicate key on upsert — fetching existing row.');
+          user = await userModel.findById(userId);
+        } else {
+          throw createErr;
+        }
+      }
+    }
+
     if (!user) {
       return res.status(404).json({ success: false, error: 'User record not found' });
     }
-    
-    req.user = { 
-      id: user.id, 
-      firebase_uid: decodedToken.uid, 
+
+    req.user = {
+      id: user.id,
+      firebase_uid: decodedToken.uid,
       phone: decodedToken.phone_number,
       role: user.role
     };
-    
+
     next();
   } catch (err) {
     console.error('Firebase Token Verification Error:', err.message);
