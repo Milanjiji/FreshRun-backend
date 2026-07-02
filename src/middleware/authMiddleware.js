@@ -1,6 +1,7 @@
 const admin = require('../config/firebase');
 const { generateHash, normalizePhone } = require('../utils/hash');
 const userModel = require('../models/userModel');
+const db = require('../config/db');
 
 const defaultAllowedOrigins = [
   'http://localhost:3000',
@@ -40,14 +41,20 @@ const authenticateToken = async (req, res, next) => {
     // Verify Firebase ID Token
     const decodedToken = await admin.auth().verifyIdToken(token);
 
-    // Guard: phone_number must be present (Phone Auth tokens always have it)
-    if (!decodedToken.phone_number) {
-      console.error('[authMiddleware] phone_number missing from decoded Firebase token. UID:', decodedToken.uid);
-      return res.status(400).json({ success: false, error: 'Phone number missing from token. Please re-authenticate.' });
-    }
+    const { uid: firebase_uid, phone_number: phone, email } = decodedToken;
+    let normalizedPhone;
+    let userId;
 
-    const normalizedPhone = normalizePhone(decodedToken.phone_number);
-    const userId = generateHash(normalizedPhone);
+    if (phone) {
+      normalizedPhone = normalizePhone(phone);
+      userId = generateHash(normalizedPhone);
+    } else if (email) {
+      normalizedPhone = 'G-' + generateHash(firebase_uid).substring(0, 13);
+      userId = generateHash(firebase_uid);
+    } else {
+      console.error('[authMiddleware] Both phone_number and email missing from decoded Firebase token. UID:', firebase_uid);
+      return res.status(400).json({ success: false, error: 'Phone number or email missing from token. Please re-authenticate.' });
+    }
 
     // Fetch full user data to get the role
     let user = await userModel.findById(userId);
@@ -59,7 +66,14 @@ const authenticateToken = async (req, res, next) => {
     if (!user) {
       console.warn(`[authMiddleware] User ${userId} not found in DB. Auto-creating as customer (upsert on first request).`);
       try {
-        user = await userModel.createUser(userId, decodedToken.uid, normalizedPhone, 'customer');
+        user = await userModel.createUser(userId, firebase_uid, normalizedPhone, 'customer');
+        if (email || decodedToken.name) {
+          await db.query(
+            'UPDATE users SET email = COALESCE($1, email), full_name = COALESCE($2, full_name) WHERE id = $3',
+            [email || null, decodedToken.name || null, userId]
+          );
+          user = await userModel.findById(userId);
+        }
         console.log(`[authMiddleware] User ${userId} created successfully via upsert.`);
       } catch (createErr) {
         // If a concurrent request already created the row (duplicate key), just fetch it.
@@ -78,8 +92,8 @@ const authenticateToken = async (req, res, next) => {
 
     req.user = {
       id: user.id,
-      firebase_uid: decodedToken.uid,
-      phone: decodedToken.phone_number,
+      firebase_uid: firebase_uid,
+      phone: user.phone,
       role: user.role
     };
 

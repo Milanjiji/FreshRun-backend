@@ -40,18 +40,24 @@ const login = async (req, res) => {
       });
     }
 
-    const { uid: firebase_uid, phone_number: phone } = decodedToken;
+    const { uid: firebase_uid, phone_number: phone, email } = decodedToken;
 
-    if (!phone) {
-       return res.status(400).json({
-         success: false,
-         error: 'Phone number missing in token. Ensure you use Phone Auth.'
-       });
+    let normalizedPhone;
+    let userId;
+
+    if (phone) {
+      normalizedPhone = normalizePhone(phone);
+      userId = generateHash(normalizedPhone);
+    } else if (email) {
+      // Google Sign-In user
+      normalizedPhone = 'G-' + generateHash(firebase_uid).substring(0, 13);
+      userId = generateHash(firebase_uid);
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Phone number or email missing in token.' 
+      });
     }
-
-    // 2. Generate Deterministic ID from Phone
-    const normalizedPhone = normalizePhone(phone);
-    const userId = generateHash(normalizedPhone);
 
     // 3. Check if user exists in DB or create one
     let user = await userModel.findById(userId);
@@ -59,6 +65,13 @@ const login = async (req, res) => {
     if (!user) {
       console.log('Debug: User not found in DB. Creating new user...');
       user = await userModel.createUser(userId, firebase_uid, normalizedPhone, role);
+      if (email || decodedToken.name) {
+        await db.query(
+          'UPDATE users SET email = COALESCE($1, email), full_name = COALESCE($2, full_name) WHERE id = $3',
+          [email || null, decodedToken.name || null, userId]
+        );
+        user = await userModel.findById(userId);
+      }
     } else if (!user.is_active) {
       // User row exists but was previously deleted/anonymized.
       // Re-activate it as a fresh account — same phone re-registered.
@@ -69,13 +82,21 @@ const login = async (req, res) => {
           phone = $1, firebase_uid = $2, role = $3,
           is_active = true, approval_status = $4,
           is_profile_complete = false,
-          full_name = NULL, email = NULL,
+          full_name = $5, email = $6,
           house_number = NULL, address_line = NULL,
           landmark = NULL, pincode = NULL, city = NULL,
           delivery_message = NULL, current_address_id = NULL,
           fcm_token = NULL, aadhar_number = NULL, aadhar_image = NULL
-        WHERE id = $5`,
-        [normalizedPhone, firebase_uid, role, isPendingRole ? 'pending' : 'approved', userId]
+        WHERE id = $7`,
+        [
+          normalizedPhone,
+          firebase_uid,
+          role,
+          isPendingRole ? 'pending' : 'approved',
+          decodedToken.name || null,
+          email || null,
+          userId
+        ]
       );
       user = await userModel.findById(userId);
     }
