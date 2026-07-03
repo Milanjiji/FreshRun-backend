@@ -68,7 +68,15 @@ pool.connect(async (err, client, release) => {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      console.log('✅ Database schema verified (fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount, upi, platform_commission, orders columns, earnings_transactions, withdrawal_requests)');
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS otp_verifications (
+          phone VARCHAR(20) PRIMARY KEY,
+          otp VARCHAR(6) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      console.log('✅ Database schema verified (otp_verifications, fcm_token, total_earnings, withdrawable_earnings, store approval_status, max_discount, upi, platform_commission, orders columns, earnings_transactions, withdrawal_requests)');
     } catch (migErr) {
       console.error('⚠️ Auto-migration failed (non-critical):', migErr.message);
     } finally {

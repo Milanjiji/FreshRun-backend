@@ -311,9 +311,217 @@ const checkPartner = async (req, res) => {
   }
 };
 
+const sendOtp = async (req, res) => {
+  console.log('--- Send OTP Request Received ---');
+  try {
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) {
+      return res.status(400).json({ success: false, error: 'Phone number is required' });
+    }
+
+    const normalized = normalizePhone(phoneNumber);
+    // Generate a 6-digit OTP
+    let otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Test numbers check for App Store review / Dev testing
+    const isTestNumber = ['+919999999999', '+918888888888', '+917777777777'].includes(normalized);
+    if (isTestNumber) {
+      otp = '123456';
+    }
+
+    // Upsert into database
+    await db.query(`
+      INSERT INTO otp_verifications (phone, otp, created_at)
+      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      ON CONFLICT (phone)
+      DO UPDATE SET otp = EXCLUDED.otp, created_at = EXCLUDED.created_at;
+    `, [normalized, otp]);
+
+    if (isTestNumber) {
+      console.log(`[Test Mode] Bypassing APITxT SMS delivery for test number: ${normalized}. OTP is: ${otp}`);
+      return res.status(200).json({ success: true, message: 'OTP sent successfully (Test Mode)' });
+    }
+
+    // Prepare request body for APITxT
+    // Strip '+' from E.164 phone number as standard for many gateways (e.g. +919999999999 -> 919999999999)
+    const apiMobile = normalized.startsWith('+') ? normalized.substring(1) : normalized;
+    const authKey = process.env.APITXT_API_KEY;
+
+    if (!authKey) {
+      console.warn('WARNING: APITXT_API_KEY environment variable is not set. Bypassing delivery...');
+      return res.status(200).json({ success: true, message: 'OTP generated (Warning: API key missing)' });
+    }
+
+    const params = new URLSearchParams();
+    params.append('authkey', authKey);
+    params.append('mobile', apiMobile);
+    params.append('otp', otp);
+    
+    console.log(`Sending OTP via APITxT to ${apiMobile}...`);
+    const apiResponse = await fetch('https://apitxt.com/api/sendOTP', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+
+    const responseText = await apiResponse.text();
+    console.log('APITxT response:', responseText);
+
+    return res.status(200).json({ success: true, message: 'OTP sent successfully' });
+
+  } catch (error) {
+    console.error('Send OTP Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to send OTP' });
+  }
+};
+
+const verifyOtp = async (req, res) => {
+  console.log('--- Verify OTP Request Received ---');
+  try {
+    const { phoneNumber, code, role } = req.body;
+
+    if (!phoneNumber || !code || !role) {
+      return res.status(400).json({ success: false, error: 'phoneNumber, code, and role are required' });
+    }
+
+    if (!['customer', 'delivery', 'store'].includes(role)) {
+      return res.status(400).json({ success: false, error: 'Invalid role' });
+    }
+
+    const normalized = normalizePhone(phoneNumber);
+
+    // Query database for OTP
+    const result = await db.query('SELECT otp, created_at FROM otp_verifications WHERE phone = $1', [normalized]);
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'No OTP requested for this phone number' });
+    }
+
+    const { otp, created_at } = result.rows[0];
+
+    // Check if OTP matches
+    if (otp !== code) {
+      return res.status(400).json({ success: false, error: 'Invalid OTP code' });
+    }
+
+    // Check expiry (e.g., 5 minutes = 300000 ms)
+    const otpAgeMs = Date.now() - new Date(created_at).getTime();
+    if (otpAgeMs > 5 * 60 * 1000) {
+      return res.status(400).json({ success: false, error: 'OTP has expired. Please request a new one.' });
+    }
+
+    // Delete the verified OTP so it cannot be reused
+    await db.query('DELETE FROM otp_verifications WHERE phone = $1', [normalized]);
+
+    // 1. Get or Create Firebase User by phone number using Firebase Admin SDK
+    let firebaseUser;
+    try {
+      console.log(`Looking up Firebase user by phone: ${normalized}`);
+      firebaseUser = await admin.auth().getUserByPhoneNumber(normalized);
+    } catch (err) {
+      if (err.code === 'auth/user-not-found') {
+        console.log(`Firebase user not found. Creating user for phone: ${normalized}`);
+        firebaseUser = await admin.auth().createUser({
+          phoneNumber: normalized,
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    const firebase_uid = firebaseUser.uid;
+    const userId = generateHash(normalized);
+
+    // 2. Fetch or create user in local database
+    let user = await userModel.findById(userId);
+
+    if (!user) {
+      console.log('Creating new user in local DB...');
+      user = await userModel.createUser(userId, firebase_uid, normalized, role);
+    } else if (!user.is_active) {
+      console.log('Re-activating deleted user row...');
+      const isPendingRole = ['delivery', 'owner'].includes(role);
+      await db.query(
+        `UPDATE users SET 
+          phone = $1, firebase_uid = $2, role = $3,
+          is_active = true, approval_status = $4,
+          is_profile_complete = false,
+          house_number = NULL, address_line = NULL,
+          landmark = NULL, pincode = NULL, city = NULL,
+          delivery_message = NULL, current_address_id = NULL,
+          fcm_token = NULL, aadhar_number = NULL, aadhar_image = NULL
+        WHERE id = $5`,
+        [
+          normalized,
+          firebase_uid,
+          role,
+          isPendingRole ? 'pending' : 'approved',
+          userId
+        ]
+      );
+      user = await userModel.findById(userId);
+    }
+
+    // 3. Generate Custom Token
+    console.log(`Generating Custom Token for UID: ${firebase_uid}`);
+    const customToken = await admin.auth().createCustomToken(firebase_uid, { role });
+
+    // 4. Calculate today's earnings if delivery partner (identical to standard login flow)
+    let todayEarnings = 0;
+    if (user.role === 'delivery') {
+      try {
+        const todayResult = await db.query(
+          `SELECT COALESCE(SUM(delivery_fee + delivery_tip), 0) as today_earnings 
+           FROM orders 
+           WHERE delivery_partner_id = $1 
+             AND is_completed = true 
+             AND updated_at >= CURRENT_DATE`,
+          [user.id]
+        );
+        todayEarnings = parseFloat(todayResult.rows[0]?.today_earnings) || 0;
+      } catch (err) {
+        console.error('Failed to compute today earnings on OTP verification:', err.message);
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      customToken,
+      user: {
+        id: user.id,
+        phone: user.phone,
+        role: user.role,
+        fullName: user.full_name,
+        email: user.email,
+        houseNumber: user.house_number,
+        addressLine: user.address_line,
+        landmark: user.landmark,
+        pincode: user.pincode,
+        city: user.city,
+        deliveryMessage: user.delivery_message,
+        currentAddressId: user.current_address_id,
+        currentAddressLatitude: user.current_address_latitude ? parseFloat(user.current_address_latitude) : null,
+        currentAddressLongitude: user.current_address_longitude ? parseFloat(user.current_address_longitude) : null,
+        isProfileComplete: user.is_profile_complete,
+        approvalStatus: user.approval_status,
+        totalEarnings: user.total_earnings ? parseFloat(user.total_earnings) : 0,
+        withdrawableEarnings: user.withdrawable_earnings ? parseFloat(user.withdrawable_earnings) : 0,
+        todayEarnings: todayEarnings,
+      },
+    });
+
+  } catch (error) {
+    console.error('Verify OTP Error:', error);
+    res.status(500).json({ success: false, error: error.message || 'Verification failed' });
+  }
+};
+
 module.exports = {
   login,
   registerPartner,
   checkOwner,
   checkPartner,
+  sendOtp,
+  verifyOtp,
 };
