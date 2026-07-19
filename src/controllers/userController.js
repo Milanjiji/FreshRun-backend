@@ -467,6 +467,44 @@ const getUserTransactions = async (req, res) => {
   }
 };
 
+/**
+ * Get per-day and lifetime sales stats for a store
+ * GET /orders/store-stats?store_id=<id>
+ */
+const getStoreSalesStats = async (req, res) => {
+  try {
+    const { store_id } = req.query;
+    if (!store_id) {
+      return res.status(400).json({ success: false, error: 'store_id is required' });
+    }
+
+    const result = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE DATE(created_at AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE AT TIME ZONE 'Asia/Kolkata') AS today_order_count,
+         COALESCE(SUM(total_amount) FILTER (WHERE DATE(created_at AT TIME ZONE 'Asia/Kolkata') = CURRENT_DATE AT TIME ZONE 'Asia/Kolkata'), 0) AS today_sales,
+         COALESCE(SUM(total_amount), 0) AS total_sales,
+         COUNT(*) AS total_order_count
+       FROM orders
+       WHERE store_id = $1 AND status != 'cancelled'`,
+      [store_id]
+    );
+
+    const row = result.rows[0];
+    res.status(200).json({
+      success: true,
+      data: {
+        todayOrderCount: parseInt(row.today_order_count) || 0,
+        todaySales: parseFloat(row.today_sales) || 0,
+        totalSales: parseFloat(row.total_sales) || 0,
+        totalOrderCount: parseInt(row.total_order_count) || 0,
+      }
+    });
+  } catch (error) {
+    console.error('Get Store Sales Stats Error:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch store stats' });
+  }
+};
+
 module.exports = {
   updateProfile,
   getProfile,
@@ -477,5 +515,6 @@ module.exports = {
   getUserById,
   deleteAccount,
   recordManualPayout,
-  getUserTransactions
+  getUserTransactions,
+  getStoreSalesStats
 };
