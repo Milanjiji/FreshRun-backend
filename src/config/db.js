@@ -30,6 +30,11 @@ pool.connect(async (err, client, release) => {
       await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_id VARCHAR(100);");
       await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_qr_image TEXT;");
       await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_commission NUMERIC(5,2) DEFAULT 10.00;");
+      await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS global_max_delivery_radius NUMERIC DEFAULT 10;");
+      await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS base_delivery_radius NUMERIC DEFAULT 5;");
+      await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS per_km_extra_charge NUMERIC DEFAULT 10;");
+      await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS is_rainy_condition BOOLEAN DEFAULT false;");
+      await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS rainy_condition_fee NUMERIC DEFAULT 20;");
       
       // Auto-migration for products columns (quantity units and inline variants)
       await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50);");
