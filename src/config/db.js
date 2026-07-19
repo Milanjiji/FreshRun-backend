@@ -35,6 +35,7 @@ pool.connect(async (err, client, release) => {
       await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS per_km_extra_charge NUMERIC DEFAULT 10;");
       await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS is_rainy_condition BOOLEAN DEFAULT false;");
       await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS rainy_condition_fee NUMERIC DEFAULT 20;");
+      await client.query("ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS cod_enabled BOOLEAN DEFAULT true;");
       
       // Auto-migration for products columns (quantity units and inline variants)
       await client.query("ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50);");
