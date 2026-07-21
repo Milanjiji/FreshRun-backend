@@ -3,6 +3,7 @@ const socketUtils = require('../utils/socket');
 const { sendOrderNotification, broadcastNewOrder } = require('../utils/notification');
 const db = require('../config/db');
 const paymentController = require('./paymentController');
+const { calculateBilling, calcSurgeFee } = require('../utils/pricingEngine');
 
 
 const createOrder = async (req, res) => {
@@ -13,31 +14,30 @@ const createOrder = async (req, res) => {
     const {
       store_id,
       items,
-      subtotal,
-      handling_fee,
-      delivery_fee,
-      rainy_surge_fee,
-      late_night_fee,
-      extra_store_charge,
-      delivery_tip,
-      total_amount,
       delivery_address,
       address_id,
       is_pickup,
-      payment_mode
+      payment_mode,
+      // Legacy fee fields from client (kept for reference; server recalculates)
+      delivery_tip,
+      // New fee fields from client
+      coupon_code,
     } = req.body;
 
-    if (!items || !total_amount || !store_id) {
-      return res.status(400).json({ success: false, error: 'Items, store_id and total_amount are required' });
+    if (!items || !store_id) {
+      return res.status(400).json({ success: false, error: 'Items and store_id are required' });
     }
 
-    // 1. Fetch Store and Settings for validation
-    const storeRes = await db.query('SELECT latitude, longitude, name FROM stores WHERE id = $1', [store_id]);
-    const store = storeRes.rows[0];
+    // 1. Fetch Store, App Settings, and Pricing Config
+    const storeRes      = await db.query('SELECT latitude, longitude, name FROM stores WHERE id = $1', [store_id]);
+    const store         = storeRes.rows[0];
     if (!store) return res.status(404).json({ success: false, error: 'Store not found' });
 
-    const settingsRes = await db.query('SELECT * FROM app_settings WHERE id = 1');
-    const settings = settingsRes.rows[0];
+    const settingsRes   = await db.query('SELECT * FROM app_settings WHERE id = 1');
+    const appSettings   = settingsRes.rows[0];
+
+    const pricingRes    = await db.query('SELECT * FROM pricing_config WHERE id = 1');
+    const pricingConfig = pricingRes.rows[0] || {};
 
     // 2. Resolve User Address & Calculate Distance
     let userLat, userLng;
@@ -50,90 +50,119 @@ const createOrder = async (req, res) => {
       userLng = delivery_address?.longitude;
     }
 
-    let finalDeliveryFee = 0;
+    const calculateDistance = (lat1, lon1, lat2, lon2) => {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    };
 
+    let distanceKm = null;
     if (!is_pickup && userLat && userLng && store.latitude && store.longitude) {
-      // Calculate Haversine Distance
-      const calculateDistance = (lat1, lon1, lat2, lon2) => {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      };
+      distanceKm = calculateDistance(userLat, userLng, store.latitude, store.longitude);
+      console.log(`[OrderPlacement] Calculated distance: ${distanceKm.toFixed(2)}km`);
 
-      const distance = calculateDistance(userLat, userLng, store.latitude, store.longitude);
-      console.log(`[OrderPlacement] Calculated distance: ${distance.toFixed(2)}km`);
-
-      // Enforce Max Radius
-      const maxRadius = parseFloat(settings.global_max_delivery_radius || 10);
-      if (distance > maxRadius) {
-        return res.status(400).json({ 
-          success: false, 
-          error: `Store is too far for delivery (${distance.toFixed(1)}km). Max allowed is ${maxRadius}km.` 
+      const maxRadius = parseFloat(appSettings.global_max_delivery_radius || 10);
+      if (distanceKm > maxRadius) {
+        return res.status(400).json({
+          success: false,
+          error: `Store is too far for delivery (${distanceKm.toFixed(1)}km). Max allowed is ${maxRadius}km.`
         });
-      }
-
-      // Calculate Dynamic Delivery Fee
-      if (parseFloat(subtotal) < parseFloat(settings.free_delivery_threshold || 500)) {
-        let fee = parseFloat(settings.min_delivery_fee || 30);
-        const baseRadius = parseFloat(settings.base_delivery_radius || 5);
-        
-        if (distance > baseRadius) {
-          const extraKm = distance - baseRadius;
-          const perKmCharge = parseFloat(settings.per_km_extra_charge || 10);
-          fee += extraKm * perKmCharge;
-        }
-
-        if (settings.is_rainy_condition) {
-          fee += parseFloat(settings.rainy_condition_fee || 0);
-        }
-
-        finalDeliveryFee = Math.round(fee);
       }
     }
 
-    // 3. Late Night Fee check (Existing logic but centralized)
-    let finalLateNightFee = 0;
+    // 3. Calculate subtotal (server-authoritative)
+    const activeItems = items.filter(item => item.price && item.quantity);
+    const subtotal = activeItems.reduce((sum, item) => {
+      const discount = item.discount_percent || 0;
+      return sum + (item.price * (1 - discount / 100) * item.quantity);
+    }, 0);
+
+    // 4. Late Night Fee
+    let lateNightFee = 0;
     const now = new Date();
-    const currentTime = now.getHours() + ":" + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
-    if (currentTime >= settings.late_night_start || currentTime <= settings.late_night_end) {
-      finalLateNightFee = parseFloat(settings.late_night_fee || 0);
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    if (appSettings.late_night_start && appSettings.late_night_end) {
+      const [sh, sm] = appSettings.late_night_start.split(':').map(Number);
+      const [eh, em] = appSettings.late_night_end.split(':').map(Number);
+      const st = sh * 60 + sm;
+      const et = eh * 60 + em;
+      const isLate = st > et ? (currentMins >= st || currentMins <= et) : (currentMins >= st && currentMins <= et);
+      if (isLate) lateNightFee = parseFloat(appSettings.late_night_fee || 0);
+    }
+
+    // 5. Extra store charge
+    const storeIds = [...new Set(activeItems.map(i => String(i.store_id || i.storeId)).filter(Boolean))];
+    const extraStoreCharge = storeIds.length > 1 ? (storeIds.length - 1) * parseFloat(appSettings.extra_store_charge || 20) : 0;
+    const effectiveExtraStore = is_pickup ? 0 : extraStoreCharge;
+
+    // 6. Coupon lookup
+    let coupon = null;
+    if (coupon_code) {
+      const couponRes = await db.query('SELECT * FROM coupons WHERE UPPER(code) = UPPER($1)', [coupon_code]);
+      coupon = couponRes.rows[0] || null;
+    }
+
+    // 7. Full billing calculation via pricing engine
+    const billing = calculateBilling({
+      items: activeItems,
+      subtotal,
+      distanceKm,
+      isSelfPickup: !!is_pickup,
+      deliveryTip: parseFloat(delivery_tip || 0),
+      lateNightFee,
+      extraStoreCharge: effectiveExtraStore,
+      appSettings,
+      pricingConfig,
+      coupon,
+    });
+
+    console.log('[OrderPlacement] Server-calculated billing:', billing);
+
+    // 8. Increment coupon used_count if a valid coupon was applied
+    if (coupon && billing.couponDiscount > 0) {
+      await db.query('UPDATE coupons SET used_count = used_count + 1 WHERE id = $1', [coupon.id]);
     }
 
     const orderData = {
       user_id,
       store_id,
-      items,
-      subtotal: subtotal || 0,
-      handling_fee: handling_fee || 0,
-      delivery_fee: delivery_fee || 0,
-      rainy_surge_fee: rainy_surge_fee || 0,
-      late_night_fee: late_night_fee || 0,
-      extra_store_charge: extra_store_charge || 0,
-      delivery_tip: delivery_tip || 0,
-      total_amount: total_amount || 0,
-      delivery_address: delivery_address || {},
-      address_id: address_id || null,
-      is_pickup: is_pickup || false,
-      payment_mode: payment_mode || 'cod'
+      items: activeItems,
+      subtotal:          Math.round(subtotal),
+      handling_fee:      billing.handlingFee,
+      delivery_fee:      billing.deliveryFee,
+      rainy_surge_fee:   0, // legacy field — kept for DB compat; surgeFee covers both
+      late_night_fee:    billing.lateNightFee,
+      extra_store_charge: billing.extraStoreCharge,
+      delivery_tip:      billing.deliveryTip,
+      total_amount:      billing.grandTotal,
+      delivery_address:  delivery_address || {},
+      address_id:        address_id || null,
+      is_pickup:         is_pickup || false,
+      payment_mode:      payment_mode || 'cod',
+      // New fee fields
+      platform_fee:      billing.platformFee,
+      packaging_fee:     billing.packagingFee,
+      surge_fee:         billing.surgeFee,
+      gst_amount:        billing.gstAmount,
+      coupon_code:       coupon_code || null,
+      coupon_discount:   billing.couponDiscount,
+      platform_discount: billing.platformDiscount,
     };
 
     const newOrder = await orderModel.createOrder(orderData);
-    console.log('📦 [OrderPlacement] Order created with dynamic fee:', finalDeliveryFee);
+    console.log('📦 [OrderPlacement] Order created. Grand Total:', billing.grandTotal);
 
     // Emit real-time updates and send push notifications only for COD orders
     if (newOrder && newOrder.payment_mode === 'cod') {
       try {
         const io = socketUtils.getIO();
         io.to('admin').emit('new_order', newOrder);
-        
-        // Notify the specific store owner's room
         io.to(`store_${newOrder.store_id}`).emit('new_order', newOrder);
-        
-        // Query the owner of the store to send a push notification
+
         const storeOwnerRes = await db.query('SELECT owner_id, name FROM stores WHERE id = $1', [newOrder.store_id]);
         const ownerId = storeOwnerRes.rows[0]?.owner_id;
         const storeName = storeOwnerRes.rows[0]?.name || 'Your store';
@@ -145,7 +174,7 @@ const createOrder = async (req, res) => {
             { orderId: String(newOrder.id), type: 'new_order' }
           );
         }
-        
+
         if (!newOrder.is_pickup) {
           io.to('delivery_partners').emit('new_available_order', newOrder);
           await broadcastNewOrder(newOrder.id, newOrder.store_name || 'a store');

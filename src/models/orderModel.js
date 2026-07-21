@@ -118,7 +118,15 @@ const orderModel = {
       total_amount,
       delivery_address,
       address_id,
-      is_pickup
+      is_pickup,
+      // New pricing fields
+      platform_fee,
+      packaging_fee,
+      surge_fee,
+      gst_amount,
+      coupon_code,
+      coupon_discount,
+      platform_discount,
     } = orderData;
 
     let resolvedAddressId = address_id;
@@ -171,10 +179,18 @@ const orderModel = {
 
     const query = `
       INSERT INTO orders (
-        user_id, store_id, items, subtotal, handling_fee, delivery_fee, 
-        rainy_surge_fee, late_night_fee, extra_store_charge, picked_up_stores, delivery_tip, total_amount, delivery_address, address_id, is_pickup, payment_mode, delivery_pin
+        user_id, store_id, items, subtotal, handling_fee, delivery_fee,
+        rainy_surge_fee, late_night_fee, extra_store_charge, picked_up_stores, delivery_tip, total_amount,
+        delivery_address, address_id, is_pickup, payment_mode, delivery_pin,
+        platform_fee, packaging_fee, surge_fee, gst_amount,
+        coupon_code, coupon_discount, platform_discount
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+        $13, $14, $15, $16, $17,
+        $18, $19, $20, $21,
+        $22, $23, $24
+      )
       RETURNING *;
     `;
 
@@ -195,7 +211,14 @@ const orderModel = {
       resolvedAddressId,
       is_pickup || false,
       orderData.payment_mode || 'cod',
-      delivery_pin
+      delivery_pin,
+      platform_fee      || 0,
+      packaging_fee     || 0,
+      surge_fee         || 0,
+      gst_amount        || 0,
+      coupon_code       || null,
+      coupon_discount   || 0,
+      platform_discount || 0,
     ];
 
     const result = await db.query(query, values);

@@ -2,6 +2,7 @@ const admin = require('../config/firebase');
 const userModel = require('../models/userModel');
 const { generateHash, normalizePhone } = require('../utils/hash');
 const db = require('../config/db');
+const { logActivity } = require('../utils/activityLogger');
 
 /**
  * Handle user login via Firebase ID Token
@@ -34,6 +35,8 @@ const login = async (req, res) => {
       decodedToken = await admin.auth().verifyIdToken(idToken);
     } catch (firebaseError) {
       console.error('Firebase Verification Error:', firebaseError.message);
+      // Log failed login due to invalid session/token
+      await logActivity(req, 'unknown', 'login_firebase', 'failed', 'Invalid or expired Firebase ID token: ' + firebaseError.message);
       return res.status(401).json({ 
         success: false, 
         error: 'Invalid or expired session' 
@@ -121,6 +124,9 @@ const login = async (req, res) => {
 
     console.log('Debug: Login successful for user:', user.id);
     
+    // Log successful Firebase login
+    await logActivity(req, user.phone, 'login_firebase', 'success');
+
     // NOTE: We no longer issue a custom JWT. The mobile app uses the Firebase idToken.
     res.status(200).json({
       success: true,
@@ -148,6 +154,7 @@ const login = async (req, res) => {
     });
   } catch (error) {
     console.error('Unexpected Auth Error:', error);
+    await logActivity(req, 'unknown', 'login_firebase', 'failed', 'Unexpected system login error: ' + error.message);
     res.status(500).json({ 
       success: false, 
       error: 'An unexpected error occurred' 
@@ -339,6 +346,7 @@ const sendOtp = async (req, res) => {
 
     if (isTestNumber) {
       console.log(`[Test Mode] Bypassing APITxT SMS delivery for test number: ${normalized}. OTP is: ${otp}`);
+      await logActivity(req, normalized, 'otp_requested', 'success', 'Test Mode Bypass');
       return res.status(200).json({ success: true, message: 'OTP sent successfully (Test Mode)' });
     }
 
@@ -349,6 +357,7 @@ const sendOtp = async (req, res) => {
 
     if (!authKey) {
       console.warn('WARNING: APITXT_API_KEY environment variable is not set. Bypassing delivery...');
+      await logActivity(req, normalized, 'otp_requested', 'success', 'Bypass: API key missing');
       return res.status(200).json({ success: true, message: 'OTP generated (Warning: API key missing)' });
     }
 
@@ -369,10 +378,13 @@ const sendOtp = async (req, res) => {
     const responseText = await apiResponse.text();
     console.log('APITxT response:', responseText);
 
+    await logActivity(req, normalized, 'otp_requested', 'success');
     return res.status(200).json({ success: true, message: 'OTP sent successfully' });
 
   } catch (error) {
     console.error('Send OTP Error:', error);
+    const normalized = req.body.phoneNumber ? normalizePhone(req.body.phoneNumber) : 'unknown';
+    await logActivity(req, normalized, 'otp_requested', 'failed', 'Error requesting OTP: ' + error.message);
     res.status(500).json({ success: false, error: 'Failed to send OTP' });
   }
 };
@@ -402,12 +414,14 @@ const verifyOtp = async (req, res) => {
 
     // Check if OTP matches
     if (otp !== code) {
+      await logActivity(req, normalized, 'otp_failed_code', 'failed', 'Invalid OTP code entered');
       return res.status(400).json({ success: false, error: 'Invalid OTP code' });
     }
 
     // Check expiry (e.g., 5 minutes = 300000 ms)
     const otpAgeMs = Date.now() - new Date(created_at).getTime();
     if (otpAgeMs > 5 * 60 * 1000) {
+      await logActivity(req, normalized, 'otp_failed_expired', 'failed', 'OTP expired');
       return res.status(400).json({ success: false, error: 'OTP has expired. Please request a new one.' });
     }
 
@@ -485,6 +499,8 @@ const verifyOtp = async (req, res) => {
       }
     }
 
+    await logActivity(req, normalized, 'otp_verified', 'success', `LoggedIn as ${role}`);
+
     res.status(200).json({
       success: true,
       customToken,
@@ -513,6 +529,8 @@ const verifyOtp = async (req, res) => {
 
   } catch (error) {
     console.error('Verify OTP Error:', error);
+    const normalized = req.body.phoneNumber ? normalizePhone(req.body.phoneNumber) : 'unknown';
+    await logActivity(req, normalized, 'otp_verified', 'failed', 'Error verifying OTP: ' + error.message);
     res.status(500).json({ success: false, error: error.message || 'Verification failed' });
   }
 };

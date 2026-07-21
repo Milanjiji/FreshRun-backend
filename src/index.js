@@ -18,6 +18,8 @@ const payoutRoutes = require('./routes/payoutRoutes');
 const bannerRoutes = require('./routes/bannerRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const activityRoutes = require('./routes/activityRoutes');
+const pricingRoutes  = require('./routes/pricingRoutes');
 const db = require('./config/db');
 const socketUtils = require('./utils/socket');
 
@@ -111,6 +113,8 @@ app.use('/payouts', payoutRoutes);
 app.use('/banners', bannerRoutes);
 app.use('/search', searchRoutes);
 app.use('/upload', uploadRoutes);
+app.use('/activity', activityRoutes);
+app.use('/pricing',  pricingRoutes);
 
 
 // Health check
